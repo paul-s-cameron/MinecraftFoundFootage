@@ -16,7 +16,9 @@ public abstract class ServerPlayerEntityMixin {
     @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerEntity;setCameraEntity(Lnet/minecraft/entity/Entity;)V", ordinal = 0))
     private void cantEscapeSpectating(ServerPlayerEntity instance, Entity entity){
         PlayerComponent component = InitializeComponents.PLAYER.get(instance);
-        if(!component.hasBeenCaptured()){
+        // Sneaking normally drops a spectator back into their own body. Neither a skinwalker's
+        // captive nor a ghost is allowed to leave the camera they are locked to.
+        if(!component.hasBeenCaptured() && !component.isGhost()){
             instance.setCameraEntity(entity);
         }
     }
@@ -32,7 +34,9 @@ public abstract class ServerPlayerEntityMixin {
     @Redirect(method = "attack", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerEntity;setCameraEntity(Lnet/minecraft/entity/Entity;)V"))
     private void dontChangeTargets(ServerPlayerEntity instance, Entity entity){
         PlayerComponent component = InitializeComponents.PLAYER.get((ServerPlayerEntity) (Object) this);
-        if (!component.hasBeenCaptured() && !component.isBeingCaptured()){
+        // Clicking an entity as a spectator normally moves your camera onto it. A ghost may
+        // only ever watch a teammate, and that choice is the server's to make.
+        if (!component.hasBeenCaptured() && !component.isBeingCaptured() && !component.isGhost()){
             instance.setCameraEntity(entity);
         }
     }

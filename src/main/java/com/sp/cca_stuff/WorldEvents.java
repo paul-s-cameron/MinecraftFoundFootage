@@ -1,6 +1,7 @@
 package com.sp.cca_stuff;
 
 import com.sp.SPBRevamped;
+import com.sp.compat.hardcorerevival.Revival;
 import com.sp.entity.custom.SkinWalkerEntity;
 import com.sp.init.BackroomsLevels;
 import com.sp.init.ModEntities;
@@ -208,7 +209,10 @@ public class WorldEvents implements AutoSyncedComponent, ServerTickingComponent 
 
         if (min != null) {
             PlayerEntity target = this.world.getPlayerByUuid(min.getKey());
-            if (target != null && target.isAlive()) {
+            // Neither a downed player nor a ghost can be taken: the capture turns its target
+            // into a spectator, which would strand someone bleeding out with no way to be
+            // rescued, or hand a dead player's camera to the skinwalker.
+            if (target != null && target.isAlive() && !target.isSpectator() && !Revival.isDowned(target)) {
                 this.setActiveSkinwalkerTarget(target.getUuid());
             }
         }

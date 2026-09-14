@@ -114,7 +114,9 @@ public class RallyComponent implements Component, ServerTickingComponent {
         if (this.isActive() || this.world.getTime() < this.reopenBlockedUntil) {
             return;
         }
-        if (!canTravel(playerComponent.player)) {
+        // Stricter than canTravel: a ghost travels with the group but is dead and cannot be
+        // credited with finding the way out.
+        if (!playerComponent.player.isAlive() || playerComponent.player.isSpectator()) {
             return;
         }
 
@@ -286,14 +288,15 @@ public class RallyComponent implements Component, ServerTickingComponent {
     }
 
     /**
-     * Who the level waits for. Dead players are included: they respawn in this level and can
-     * still make it, and the countdown already bounds how long anyone is waited for. Spectators
-     * are not — they are either watching, or the lobby has parked them, or a skinwalker has them.
+     * Who the level waits for: exactly the players it would actually take, minus the ghosts it
+     * takes as passengers. A dead player is excluded because departure cannot move them — and it
+     * no longer needs to wait for one, since they become a ghost within a few seconds and ride
+     * along regardless.
      */
     private List<ServerPlayerEntity> countedPlayers() {
         List<ServerPlayerEntity> counted = new ArrayList<>();
         for (ServerPlayerEntity player : this.serverPlayers()) {
-            if (!player.isSpectator()) {
+            if (player.isAlive() && !player.isSpectator()) {
                 counted.add(player);
             }
         }
@@ -312,7 +315,15 @@ public class RallyComponent implements Component, ServerTickingComponent {
 
     /** Whether this player can actually be moved to the next level right now. */
     private static boolean canTravel(PlayerEntity player) {
-        return player.isAlive() && !player.isSpectator();
+        if (!player.isAlive()) {
+            return false;
+        }
+        if (!player.isSpectator()) {
+            return true;
+        }
+        // Ghosts are the deliberate exception to "take exactly who you waited for": they are
+        // dead players riding along with the group, and arriving is what revives them.
+        return InitializeComponents.PLAYER.get(player).isGhost();
     }
 
     private static String formatTime(int seconds) {

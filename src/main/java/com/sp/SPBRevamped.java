@@ -3,6 +3,7 @@ package com.sp;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.command.EventCommand;
+import com.sp.ghost.GhostManager;
 import com.sp.command.GimmeMyInventoryBack;
 import com.sp.command.LevelCommand;
 import com.sp.command.RallyCommand;
@@ -105,7 +106,14 @@ public class SPBRevamped implements ModInitializer {
 				PlayerComponent playerComponent = InitializeComponents.PLAYER.get(newPlayer);
 
 				sendBlackScreenPacket(newPlayer, 120, false, true);
+				// Read before becoming a ghost: spectator sets invulnerable, so capturing it
+				// afterwards would back up "true" and the restore below would make a revived
+				// player permanently invulnerable.
 				backupInvulnerable = newPlayer.getAbilities().invulnerable;
+
+				// Dying in the backrooms does not put you back in the run: you watch it out
+				// through a teammate and rejoin when the group reaches the next level.
+				GhostManager.becomeGhost(newPlayer);
 				newPlayer.getAbilities().invulnerable = true;
 				playerComponent.setShouldRender(false);
 				playerComponent.sync();
@@ -116,7 +124,12 @@ public class SPBRevamped implements ModInitializer {
 					playerComponent.setShouldRender(true);
 					playerComponent.setShouldDoStatic(true);
 					playerComponent.sync();
-					newPlayer.getAbilities().invulnerable = backupInvulnerable;
+					// Not while still a ghost: spectator owns this flag, and restoring a stale
+					// value would either strip a ghost's invulnerability or make a player who
+					// has already been revived immortal.
+					if (!InitializeComponents.PLAYER.get(newPlayer).isGhost()) {
+						newPlayer.getAbilities().invulnerable = backupInvulnerable;
+					}
 					executorService.shutdown();
 				}, 6000, TimeUnit.MILLISECONDS);
 

@@ -2,6 +2,7 @@ package com.sp.cca_stuff;
 
 import com.sp.SPBRevamped;
 import com.sp.clientWrapper.ClientWrapper;
+import com.sp.ghost.GhostManager;
 import com.sp.entity.custom.SmilerEntity;
 import com.sp.init.*;
 import com.sp.mixininterfaces.ServerPlayNetworkSprint;
@@ -62,6 +63,10 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
 
     private boolean flashLightOn;
     private boolean shouldRender;
+    /** Dead, watching through a teammate's eyes until the group reaches the next level. */
+    private boolean ghost;
+    /** The level this player died in. A ghost is revived once the group reaches a different one. */
+    private String ghostWorld = "";
     private boolean isDoingCutscene;
     private boolean playingGlitchSound;
     private boolean shouldNoClip;
@@ -229,6 +234,24 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
     public boolean isShouldRender() {
         return shouldRender;
     }
+    public boolean isGhost() {
+        return ghost;
+    }
+
+    public void setGhost(boolean ghost) {
+        this.ghost = ghost;
+        this.justChanged();
+    }
+
+    public String getGhostWorld() {
+        return ghostWorld;
+    }
+
+    public void setGhostWorld(String ghostWorld) {
+        this.ghostWorld = ghostWorld;
+        this.justChanged();
+    }
+
     public void setShouldRender(boolean shouldRender) {
         this.shouldRender = shouldRender;
     }
@@ -348,6 +371,8 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         this.stamina = tag.getInt("stamina");
         this.flashLightOn = tag.getBoolean("flashLightOn");
         this.shouldRender = tag.getBoolean("shouldRender");
+        this.ghost = tag.getBoolean("ghost");
+        this.ghostWorld = tag.getString("ghostWorld");
         this.isDoingCutscene = tag.getBoolean("isDoingCutscene");
         this.playingGlitchSound = tag.getBoolean("playingGlitchSound");
         this.shouldNoClip = tag.getBoolean("shouldNoClip");
@@ -370,6 +395,8 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         tag.putInt("stamina", this.stamina);
         tag.putBoolean("flashLightOn", this.flashLightOn);
         tag.putBoolean("shouldRender", this.shouldRender);
+        tag.putBoolean("ghost", this.ghost);
+        tag.putString("ghostWorld", this.ghostWorld);
         tag.putBoolean("isDoingCutscene", this.isDoingCutscene);
         tag.putBoolean("playingGlitchSound", this.playingGlitchSound);
         tag.putBoolean("shouldNoClip", this.shouldNoClip);
@@ -421,6 +448,11 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
             }
         } else {
             this.speakingBuffer = 80;
+        }
+
+        //*Ghosts: keep the camera locked to a teammate, and revive them when the group moves on
+        if (this.player instanceof ServerPlayerEntity serverPlayer) {
+            GhostManager.tick(serverPlayer, this);
         }
 
         //*Cast him to the Backrooms

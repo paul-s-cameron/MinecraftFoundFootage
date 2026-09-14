@@ -70,12 +70,12 @@ public abstract class DeathScreenMixin extends Screen {
     private void youAreNotDoneYet(CallbackInfo ci){
         if (this.isInBackrooms()) {
             this.setButtonsActive(true);
-            if (!firstTimeDead) {
-                delay++;
-                if(delay == 80) {
-                    this.client.player.requestRespawn();
-                    this.client.setScreen(null);
-                }
+            // Always auto-respawn. A player who has to press a button before respawning can sit
+            // on this screen indefinitely, and the group has no way to carry them.
+            delay++;
+            if (delay == 80) {
+                this.client.player.requestRespawn();
+                this.client.setScreen(null);
             }
         }
     }

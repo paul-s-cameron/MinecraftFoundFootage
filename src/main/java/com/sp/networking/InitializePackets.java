@@ -11,6 +11,7 @@ public class InitializePackets {
     public static final Identifier TARGET_ENTITY_SYNC = new Identifier(SPBRevamped.MOD_ID, "targ_ent");
     public static final Identifier SEE_SKINWALKER_SYNC = new Identifier(SPBRevamped.MOD_ID, "see_skin");
     public static final Identifier COMPONENT_SYNC = new Identifier(SPBRevamped.MOD_ID, "comp_sync");
+    public static final Identifier GHOST_CAMERA = new Identifier(SPBRevamped.MOD_ID, "ghost_cam");
 
     public static final Identifier SCREEN_SHAKE = new Identifier(SPBRevamped.MOD_ID, "scr_shake");
     public static final Identifier BLACK_SCREEN = new Identifier(SPBRevamped.MOD_ID, "blk_screen");
@@ -22,6 +23,7 @@ public class InitializePackets {
         ServerPlayNetworking.registerGlobalReceiver(TARGET_ENTITY_SYNC, TargetEntitySync::receive);
         ServerPlayNetworking.registerGlobalReceiver(SEE_SKINWALKER_SYNC, SeeActiveSkinwalkerSync::receive);
         ServerPlayNetworking.registerGlobalReceiver(COMPONENT_SYNC, SyncServerComponent::receive);
+        ServerPlayNetworking.registerGlobalReceiver(GHOST_CAMERA, GhostCameraSync::receive);
     }
 
     public static void registerS2CPackets() {

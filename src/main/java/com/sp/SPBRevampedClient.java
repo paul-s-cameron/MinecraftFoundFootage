@@ -4,6 +4,7 @@ import com.sp.block.client.renderer.FluorescentLightBlockEntityRenderer;
 import com.sp.block.client.renderer.ThinFluorescentLightBlockEntityRenderer;
 import com.sp.block.client.renderer.TinyFluorescentLightBlockEntityRenderer;
 import com.sp.cca_stuff.InitializeComponents;
+import com.sp.ghost.GhostCameraClient;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.cca_stuff.WorldEvents;
 import com.sp.compat.modmenu.ConfigDefinitions;
@@ -526,6 +527,10 @@ public class SPBRevampedClient implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register((client) ->{
+            if (GhostCameraClient.isGhost(client)) {
+                GhostCameraClient.tick(client);
+            }
+
             if (cutsceneManager.isPlaying) {
                 if (!ClientManager.getPlayerStateManager().isMuted()) {
                     shouldBeUnmuted = true;
