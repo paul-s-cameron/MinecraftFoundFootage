@@ -5,6 +5,7 @@ import com.sp.cca_stuff.PlayerComponent;
 import com.sp.command.EventCommand;
 import com.sp.command.GhostCommand;
 import com.sp.ghost.GhostManager;
+import com.sp.objective.ObjectiveManager;
 import com.sp.command.GimmeMyInventoryBack;
 import com.sp.command.LevelCommand;
 import com.sp.command.RallyCommand;
@@ -24,6 +25,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.loader.api.FabricLoader;
@@ -91,6 +93,11 @@ public class SPBRevamped implements ModInitializer {
 		FabricDefaultAttributeRegistry.register(ModEntities.SMILER_ENTITY, SmilerEntity.createSmilerAttributes());
 
 		LOGGER.info("\"WOOOOOOOOOOOOOOOOOOOOOOOooooooooooooooooooooooooo..........\" -He said as he fell into the backrooms, never to be seen again.");
+
+		// Objectives are cached per player so nothing is sent while nothing changes; without this
+		// that cache would grow for the life of the server.
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+				ObjectiveManager.forget(handler.player.getUuid()));
 
 		ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register(((player, origin, destination) -> {
 			PacketByteBuf buffer = PacketByteBufs.create();

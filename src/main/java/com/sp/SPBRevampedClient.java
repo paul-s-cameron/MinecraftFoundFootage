@@ -23,6 +23,8 @@ import com.sp.render.bird.FlockManager;
 import com.sp.render.camera.CameraShake;
 import com.sp.render.camera.CutsceneManager;
 import com.sp.render.grass.GrassRenderer;
+import com.sp.objective.ClientObjective;
+import com.sp.render.gui.ObjectiveHud;
 import com.sp.render.gui.StaminaBar;
 import com.sp.render.gui.TitleText;
 import com.sp.render.pbr.BlockIdMap;
@@ -116,6 +118,11 @@ public class SPBRevampedClient implements ClientModInitializer {
     public void onInitializeClient() {
         HudRenderCallback.EVENT.register(new TitleText());
         HudRenderCallback.EVENT.register(new StaminaBar());
+        HudRenderCallback.EVENT.register(new ObjectiveHud());
+
+        // Otherwise an objective survives the disconnect and is burned onto the next server,
+        // which may not have this mod at all and so would never correct it.
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientObjective.clear());
 
         InitializePackets.registerS2CPackets();
 

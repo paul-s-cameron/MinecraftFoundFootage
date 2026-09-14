@@ -18,6 +18,7 @@ public class InitializePackets {
     public static final Identifier RELOAD_LIGHTS = new Identifier(SPBRevamped.MOD_ID, "rl_lights");
     public static final Identifier SOUND = new Identifier(SPBRevamped.MOD_ID, "snd");
     public static final Identifier LEVEL_TRANSITION_LIGHTSOUT = new Identifier(SPBRevamped.MOD_ID, "ltos");
+    public static final Identifier OBJECTIVE = new Identifier(SPBRevamped.MOD_ID, "objective");
 
     public static void registerC2SPackets() {
         ServerPlayNetworking.registerGlobalReceiver(TARGET_ENTITY_SYNC, TargetEntitySync::receive);
@@ -32,5 +33,6 @@ public class InitializePackets {
         ClientPlayNetworking.registerGlobalReceiver(RELOAD_LIGHTS, ReloadLightsPacket::receive);
         ClientPlayNetworking.registerGlobalReceiver(SOUND, SoundPacket::receive);
         ClientPlayNetworking.registerGlobalReceiver(LEVEL_TRANSITION_LIGHTSOUT, LevelTransitionLightsOut::receive);
+        ClientPlayNetworking.registerGlobalReceiver(OBJECTIVE, ObjectivePacket::receive);
     }
 }

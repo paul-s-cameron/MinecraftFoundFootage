@@ -3,6 +3,7 @@ package com.sp.cca_stuff;
 import com.sp.SPBRevamped;
 import com.sp.clientWrapper.ClientWrapper;
 import com.sp.ghost.GhostManager;
+import com.sp.objective.ObjectiveManager;
 import com.sp.entity.custom.SmilerEntity;
 import com.sp.init.*;
 import com.sp.mixininterfaces.ServerPlayNetworkSprint;
@@ -453,6 +454,8 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         //*Ghosts: keep the camera locked to a teammate, and revive them when the group moves on
         if (this.player instanceof ServerPlayerEntity serverPlayer) {
             GhostManager.tick(serverPlayer, this);
+            //*Objectives: work out what this player should be told to do, and sync it if it moved
+            ObjectiveManager.tick(serverPlayer);
         }
 
         //*Cast him to the Backrooms

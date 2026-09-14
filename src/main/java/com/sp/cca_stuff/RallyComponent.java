@@ -87,6 +87,15 @@ public class RallyComponent implements Component, ServerTickingComponent {
         return this.deadline;
     }
 
+    /**
+     * How many players a departure would actually wait for — the denominator of the presence
+     * readout. Recomputed rather than stored, so it can never disagree with who is being waited
+     * for; the cost is one pass over this level's players.
+     */
+    public int countedTotal() {
+        return this.countedPlayers().size();
+    }
+
     public Set<UUID> getPresent() {
         return this.present;
     }

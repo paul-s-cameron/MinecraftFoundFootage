@@ -95,6 +95,7 @@
   "spb-revamped.midnightconfig.category.video": "Video Settings",
   "spb-revamped.midnightconfig.category.shaders": "Shader Settings",
   "spb-revamped.midnightconfig.category.server": "Server Settings",
+  "spb-revamped.midnightconfig.showObjective": "Show Objective Line",
   "spb-revamped.midnightconfig.enableVanillaLighting": "Enable Vanilla Lighting",
   "spb-revamped.midnightconfig.enableRealCamera": "Enable Realistic Camera",
   "spb-revamped.midnightconfig.forceBackrooms": "Force Inside Backrooms",
@@ -185,5 +186,13 @@
   "spb-revamped.ghost.command.status.downed": "%s: downed, bleeding out",
   "spb-revamped.ghost.command.status.dead": "%s: dead, not yet a ghost",
   "spb-revamped.ghost.command.status.spectating": "%s: spectating, but not a ghost",
-  "spb-revamped.ghost.command.status.up": "%s: up, %s health"
+  "spb-revamped.ghost.command.status.up": "%s: up, %s health",
+
+  "objective.spb-revamped.rally": "EXIT FOUND",
+  "objective.spb-revamped.level0": "FIND A WAY DOWN",
+  "objective.spb-revamped.level1": "KEEP GOING DOWN",
+  "objective.spb-revamped.level2": "FOLLOW THE CORRIDOR",
+  "objective.spb-revamped.level324": "FIND A WAY OUT",
+  "objective.spb-revamped.poolrooms": "FIND THE DARK WATER",
+  "objective.spb-revamped.inf_grass": "FIND HIGH GROUND"
 }
