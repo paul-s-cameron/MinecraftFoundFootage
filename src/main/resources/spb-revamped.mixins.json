@@ -79,6 +79,7 @@
     "rain.NoRainParticlesWorldRendererMixin",
     "renderlayer.RenderLayerMixin",
     "renderlayer.WorldRendererMixin",
+    "respawnsystem.ClientPlayerEntityMixin",
     "respawnsystem.DeathScreenMixin",
     "respawnsystem.LivingEntityRendererMixin",
     "skinstolen.ChatScreenMixin",
