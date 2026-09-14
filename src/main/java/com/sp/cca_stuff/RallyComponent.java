@@ -40,8 +40,6 @@ import java.util.UUID;
  * given player may see comes with the objective HUD.
  */
 public class RallyComponent implements Component, ServerTickingComponent {
-    /** How often the "regroup" readout is refreshed. Action bar text lasts far longer than this. */
-    private static final int STATUS_INTERVAL_TICKS = 10;
     /** How long an operator's {@code /rally cancel} suppresses the exit that was just cancelled. */
     private static final int CANCEL_COOLDOWN_TICKS = 200;
     /** Leaving the rally needs a little more than arriving, so pacing the edge does not flicker. */
@@ -167,10 +165,11 @@ public class RallyComponent implements Component, ServerTickingComponent {
 
         this.updatePresence(counted, rule);
 
+        // Nothing is pushed to the players while a rally runs: the objective line already shows
+        // the distance, the countdown and who is there, and recomputes them client-side every
+        // frame rather than once every half second.
         if (this.present.size() >= counted.size() || this.world.getTime() >= this.deadline) {
             this.depart(rule);
-        } else {
-            this.showStatus(counted);
         }
     }
 
@@ -280,27 +279,6 @@ public class RallyComponent implements Component, ServerTickingComponent {
         this.present = here;
     }
 
-    private void showStatus(List<ServerPlayerEntity> counted) {
-        if (this.world.getTime() % STATUS_INTERVAL_TICKS != 0) {
-            return;
-        }
-        String remaining = formatTime((int) Math.max(0, (this.deadline - this.world.getTime()) / 20));
-        String total = String.valueOf(counted.size());
-        String here = String.valueOf(this.present.size());
-
-        for (ServerPlayerEntity player : counted) {
-            Text text;
-            if (this.present.contains(player.getUuid())) {
-                text = Text.translatable("spb-revamped.rally.waiting", here, total, remaining);
-            } else {
-                int distance = (int) Math.round(Math.sqrt(player.getPos().squaredDistanceTo(this.rallyPos)));
-                text = Text.translatable("spb-revamped.rally.regroup", distance, here, total, remaining);
-            }
-            // Action bar rather than chat: a player with chat hidden never sees chat messages.
-            player.sendMessage(text, true);
-        }
-    }
-
     @Nullable
     private BackroomsLevel.ExitRule activeRule() {
         BackroomsLevel level = BackroomsLevels.getLevel(this.world).orElse(null);
@@ -344,10 +322,6 @@ public class RallyComponent implements Component, ServerTickingComponent {
         // Ghosts are the deliberate exception to "take exactly who you waited for": they are
         // dead players riding along with the group, and arriving is what revives them.
         return InitializeComponents.PLAYER.get(player).isGhost();
-    }
-
-    private static String formatTime(int seconds) {
-        return String.format("%d:%02d", seconds / 60, seconds % 60);
     }
 
     private void clear() {
