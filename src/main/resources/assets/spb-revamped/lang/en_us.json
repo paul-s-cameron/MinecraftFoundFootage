@@ -174,5 +174,16 @@
   "spb-revamped.rally.command.forced": "Rally departed.",
   "spb-revamped.rally.command.cancelled": "Rally cancelled.",
   "spb-revamped.rally.command.none": "No rally is open in this level.",
-  "spb-revamped.rally.command.status": "Rally at %s - %s here - %ss left"
+  "spb-revamped.rally.command.status": "Rally at %s - %s here - %ss left",
+
+  "spb-revamped.ghost.command.revived.ghost": "%s was a ghost - back in the run",
+  "spb-revamped.ghost.command.revived.downed": "%s was downed - back on their feet",
+  "spb-revamped.ghost.command.revived.dead": "%s was dead - brought back",
+  "spb-revamped.ghost.command.revived.up": "%s was already up - healed",
+  "spb-revamped.ghost.command.status.ghost": "%s: ghost, watching %s",
+  "spb-revamped.ghost.command.status.stranded": "%s: ghost with nobody to watch",
+  "spb-revamped.ghost.command.status.downed": "%s: downed, bleeding out",
+  "spb-revamped.ghost.command.status.dead": "%s: dead, not yet a ghost",
+  "spb-revamped.ghost.command.status.spectating": "%s: spectating, but not a ghost",
+  "spb-revamped.ghost.command.status.up": "%s: up, %s health"
 }

@@ -105,6 +105,52 @@ public final class GhostManager {
         restoreVitals(player);
     }
 
+    /** What {@link #forceRevive} found the player in. */
+    public enum ReviveResult {
+        GHOST,
+        DOWNED,
+        ALREADY_UP
+    }
+
+    /**
+     * Puts a living player back on their feet from whatever death-adjacent state they are in.
+     * The counterpart to dying, for testing; nothing in normal play calls this.
+     *
+     * <p>The player must be alive — a dead one has to be respawned first, and that replaces the
+     * entity, so it is the caller's job rather than something that can be hidden in here.
+     *
+     * <p>Game mode is only touched on the ghost path. A player spectating for some other reason
+     * (a skinwalker has taken them) is left alone deliberately: that is a mechanic in progress,
+     * not a state to be cleaned up.
+     */
+    public static ReviveResult forceRevive(ServerPlayerEntity player) {
+        if (InitializeComponents.PLAYER.get(player).isGhost()) {
+            revive(player);
+            return ReviveResult.GHOST;
+        }
+        if (Revival.isDowned(player)) {
+            // Waking without the rescue effects leaves them on the half heart the knockout
+            // pinned them to, so vitals are restored rather than left to Hardcore Revival.
+            Revival.wakeUp(player, false);
+            restoreVitals(player);
+            return ReviveResult.DOWNED;
+        }
+        restoreVitals(player);
+        return ReviveResult.ALREADY_UP;
+    }
+
+    /** Whether this player is a ghost. For readouts; the component is the source of truth. */
+    public static boolean isGhost(ServerPlayerEntity player) {
+        return InitializeComponents.PLAYER.get(player).isGhost();
+    }
+
+    /** Who a ghost is currently watching, if anyone. */
+    @Nullable
+    public static PlayerEntity watching(ServerPlayerEntity ghost) {
+        Entity camera = ghost.getCameraEntity();
+        return camera instanceof PlayerEntity target && camera != ghost ? target : null;
+    }
+
     private static void restoreVitals(ServerPlayerEntity player) {
         player.setHealth(player.getMaxHealth());
         player.getHungerManager().setFoodLevel(20);

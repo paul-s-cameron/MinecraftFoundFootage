@@ -3,6 +3,7 @@ package com.sp;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.command.EventCommand;
+import com.sp.command.GhostCommand;
 import com.sp.ghost.GhostManager;
 import com.sp.command.GimmeMyInventoryBack;
 import com.sp.command.LevelCommand;
@@ -78,6 +79,7 @@ public class SPBRevamped implements ModInitializer {
 		CommandRegistrationCallback.EVENT.register(GimmeMyInventoryBack::register);
 		CommandRegistrationCallback.EVENT.register(SkinwalkerCommand::register);
 		CommandRegistrationCallback.EVENT.register(RallyCommand::register);
+		CommandRegistrationCallback.EVENT.register(GhostCommand::register);
 
 		// Thanks Bob Mowzie
 		GeckoLibUtil.addCustomBakedModelFactory(MOD_ID, new MowzieModelFactory());
