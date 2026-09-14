@@ -208,10 +208,16 @@ public class ClientWrapper {
             if (backroomsLevel.isPresent()) {
                 BackroomsLevel level = backroomsLevel.get();
 
-                List<BackroomsLevel.LevelTransition> teleports = level.checkForTransition(playerComponent, playerComponent.player.getWorld());
+                // Only levels still on the legacy per-player transitions reach this. A level with
+                // exit rules departs as a group, decided on the server, so the client is not
+                // allowed to predict it -- its fades are driven by the server's own packets
+                // instead. See RallyComponent.
+                if (!level.hasExitRules()) {
+                    List<BackroomsLevel.LevelTransition> teleports = level.checkForTransition(playerComponent, playerComponent.player.getWorld());
 
-                if (!teleports.isEmpty() && playerComponent.currentTransition == null) {
-                    playerComponent.currentTransition = teleports.get(0);
+                    if (!teleports.isEmpty() && playerComponent.currentTransition == null) {
+                        playerComponent.currentTransition = teleports.get(0);
+                    }
                 }
 
                 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

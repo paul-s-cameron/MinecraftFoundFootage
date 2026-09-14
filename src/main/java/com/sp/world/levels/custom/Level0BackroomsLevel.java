@@ -51,21 +51,15 @@ public class Level0BackroomsLevel extends BackroomsLevel implements BackroomsLev
         this.registerEvent("intercom", Level0IntercomBasic::new);
         this.registerEvent("music", Level0Music::new);
 
-        this.registerTransition((world, playerComponent, from) -> {
-            List<LevelTransition> playerList = new ArrayList<>();
-
-            if (from instanceof Level0BackroomsLevel && playerComponent.player.getPos().getY() <= 11 && playerComponent.player.isOnGround()) {
-                for (PlayerEntity player : playerComponent.player.getWorld().getPlayers()) {
-                    PlayerComponent otherPlayerComponent = InitializeComponents.PLAYER.get(player);
-                    playerList.add(getLevel1Transition(otherPlayerComponent));
-                }
-            }
-
-            return playerList;
-        }, this.getLevelId() + "->" + BackroomsLevels.LEVEL1_BACKROOMS_LEVEL.getLevelId());
+        this.registerExitRule(new ExitRule(
+                this.getLevelId() + "->" + BackroomsLevels.LEVEL1_BACKROOMS_LEVEL.getLevelId(),
+                (world, playerComponent) ->
+                        playerComponent.player.getPos().getY() <= 11 && playerComponent.player.isOnGround(),
+                this::getLevel1Transition,
+                new RallyPolicy(6.0, 1800)));
     }
 
-    private LevelTransition getLevel1Transition(PlayerComponent playerComponent) {
+    private LevelTransition getLevel1Transition(PlayerComponent playerComponent, Vec3d rallyPos) {
         return new LevelTransition(
             30,
             (teleport, tick) -> {
@@ -76,26 +70,21 @@ public class Level0BackroomsLevel extends BackroomsLevel implements BackroomsLev
                 }
             },
             new CrossDimensionTeleport(playerComponent,
-                calculateLevel1TeleportCoords(
-                    playerComponent.player,
-                    playerComponent.player.getChunkPos()),
+                calculateLevel1TeleportCoords(rallyPos),
                 this,
                 BackroomsLevels.LEVEL1_BACKROOMS_LEVEL),
         (teleport, tick) -> {});
     }
 
-    private Vec3d calculateLevel1TeleportCoords(PlayerEntity player, ChunkPos chunkPos) {
-        if(chunkPos.x == player.getChunkPos().x && chunkPos.z == player.getChunkPos().z) {
-            int chunkX = chunkPos.getStartX();
-            int chunkZ = chunkPos.getStartZ();
+    /**
+     * Derived from the rally point rather than each player's own position, so the group arrives
+     * on the same spot instead of scattered by wherever they were standing.
+     */
+    private Vec3d calculateLevel1TeleportCoords(Vec3d rallyPos) {
+        int chunkStartX = (((int) Math.floor(rallyPos.x)) >> 4) << 4;
+        int chunkStartZ = (((int) Math.floor(rallyPos.z)) >> 4) << 4;
 
-            double playerX = player.getPos().x;
-            double playerZ = player.getPos().z;
-
-            return new Vec3d(playerX - chunkX, player.getPos().y + 15, playerZ - chunkZ);
-        } else {
-            return this.getSpawnPos();
-        }
+        return new Vec3d(rallyPos.x - chunkStartX, rallyPos.y + 15, rallyPos.z - chunkStartZ);
     }
 
     @Override

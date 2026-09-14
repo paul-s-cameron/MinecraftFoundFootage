@@ -431,11 +431,9 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         if (backroomsLevel.isPresent()) {
             BackroomsLevel level = backroomsLevel.get();
 
-            List<BackroomsLevel.LevelTransition> teleports = level.checkForTransition(this, this.player.getWorld());
-
-            if (!teleports.isEmpty() && currentTransition == null) {
-                currentTransition = teleports.get(0);
-            }
+            // Exits are gathered at rather than walked through: this opens a rally when someone
+            // reaches one, and the whole level departs together later. See RallyComponent.
+            InitializeComponents.RALLY.get(this.player.getWorld()).onPlayerTick(level, this);
 
             if (level == BackroomsLevels.LEVEL324_BACKROOMS_LEVEL && this.player.getWorld().getBlockState(this.player.getBlockPos().offset(Direction.DOWN, 3)).isOf(Blocks.RED_WOOL)) {
                 this.player.teleport(this.player.getX(), this.player.getY() - 64, this.player.getZ());
@@ -447,6 +445,13 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         }
 
         // ������ Why is the � a question mark for me?
+
+        // Dying part-way through a fade: drop the transition rather than move a corpse between
+        // dimensions, which lands them in the new level at the old level's coordinates.
+        if (currentTransition != null && !this.player.isAlive()) {
+            currentTransition = null;
+            this.setTeleportingTimer(-1);
+        }
 
         if (currentTransition != null) {
             if (teleportingTimer == -1) {

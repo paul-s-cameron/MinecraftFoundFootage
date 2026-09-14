@@ -166,5 +166,13 @@
 
 
   "spb-revamped.flashlight.wet1": "Your flashlight got wet. ",
-  "spb-revamped.flashlight.wet2": "It no longer works"
+  "spb-revamped.flashlight.wet2": "It no longer works",
+
+  "spb-revamped.rally.found": "%s found a way out. Regroup there.",
+  "spb-revamped.rally.regroup": "Regroup - %sm away - %s/%s here - %s",
+  "spb-revamped.rally.waiting": "Waiting at the exit - %s/%s here - %s",
+  "spb-revamped.rally.command.forced": "Rally departed.",
+  "spb-revamped.rally.command.cancelled": "Rally cancelled.",
+  "spb-revamped.rally.command.none": "No rally is open in this level.",
+  "spb-revamped.rally.command.status": "Rally at %s - %s here - %ss left"
 }

@@ -29,24 +29,21 @@ public class Level324Backroomslevel extends BackroomsLevel implements BackroomsL
         this.registerEvent("flicker", LightLevelFlicker::new);
         this.registerEvent("ambience", ScreechSoundEvent::new);
 
-        this.registerTransition((world, playerComponent, from) -> {
-            List<LevelTransition> playerList = new ArrayList<>();
+        this.registerExitRule(new ExitRule(
+                this.getLevelId() + " -> " + BackroomsLevels.INFINITE_FIELD_BACKROOMS_LEVEL.getLevelId(),
+                (world, playerComponent) -> {
+                    int exitRadius = SPBRevamped.getExitSpawnRadius(world);
+                    return hasGrassBeneath(playerComponent)
+                            && playerComponent.player.getPos().squaredDistanceTo(new Vec3d(0, 65, 0))
+                            >= (double) ((exitRadius / 3) * (exitRadius / 3));
+                },
+                this::getInfiniteFieldsTransition,
+                new RallyPolicy(8.0, 2400)));
 
-            int exitRadius = SPBRevamped.getExitSpawnRadius(world);
-
-            if (from instanceof Level324Backroomslevel &&
-                    hasGrassBeneath(playerComponent) &&
-                    playerComponent.player.getPos().squaredDistanceTo(new Vec3d(0, 65, 0)) >= (double) ((exitRadius / 3) * (exitRadius / 3)) ) {
-                playerList.add(getInfiniteFieldsTransition(playerComponent));
-            }
-
-            return playerList;
-        }, this.getLevelId() + " -> " + BackroomsLevels.INFINITE_FIELD_BACKROOMS_LEVEL.getLevelId());
-
-        this.registerTransition((world, playerComponent, from) -> {
-            List<LevelTransition> playerList = new ArrayList<>();
-
-            Vec2f[] puddleLocations = new Vec2f[]{
+        this.registerExitRule(new ExitRule(
+                this.getLevelId() + " -> " + BackroomsLevels.POOLROOMS_BACKROOMS_LEVEL.getLevelId(),
+                (world, playerComponent) -> {
+                    Vec2f[] puddleLocations = new Vec2f[]{
                     new Vec2f(300.0f, 0.0f),
                     new Vec2f(-300.0f, 0.0f),
                     new Vec2f(0.0f, 300.0f),
@@ -61,20 +58,24 @@ public class Level324Backroomslevel extends BackroomsLevel implements BackroomsL
                     new Vec2f(-100.0f, -200.0f),
                     new Vec2f(200.0f, 100.0f),
                     new Vec2f(-200.0f, 100.0f),
-                    new Vec2f(200.0f, -100.0f),
-                    new Vec2f(-200.0f, -100.0f)
-            };
+                            new Vec2f(200.0f, -100.0f),
+                            new Vec2f(-200.0f, -100.0f)
+                    };
 
-            if (from instanceof Level324Backroomslevel && playerComponent.player.getY() < 20) {
-                for (Vec2f vec2f : puddleLocations) {
-                    if (4 > vec2f.distanceSquared(new Vec2f((float) playerComponent.player.getX(), (float) playerComponent.player.getZ()))) {
-                        playerList.add(getPoolRoomsTransition(playerComponent));
+                    if (playerComponent.player.getY() >= 20) {
+                        return false;
                     }
-                }
-            }
 
-            return playerList;
-        }, this.getLevelId() + " -> " + BackroomsLevels.POOLROOMS_BACKROOMS_LEVEL.getLevelId());
+                    Vec2f playerPos = new Vec2f((float) playerComponent.player.getX(), (float) playerComponent.player.getZ());
+                    for (Vec2f puddle : puddleLocations) {
+                        if (4 > puddle.distanceSquared(playerPos)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                },
+                this::getPoolRoomsTransition,
+                new RallyPolicy(8.0, 2400)));
     }
 
     private static boolean hasGrassBeneath(PlayerComponent playerComponent) {
@@ -82,7 +83,7 @@ public class Level324Backroomslevel extends BackroomsLevel implements BackroomsL
                 playerComponent.player.getBlockPos().subtract(new Vec3i(0,1,0)))).isOf(ModBlocks.RED_DIRT);
     }
 
-    private LevelTransition getInfiniteFieldsTransition(PlayerComponent playerComponent) {
+    private LevelTransition getInfiniteFieldsTransition(PlayerComponent playerComponent, Vec3d rallyPos) {
         return new LevelTransition(
                 40,
                 (teleport, tick) -> {
@@ -122,7 +123,7 @@ public class Level324Backroomslevel extends BackroomsLevel implements BackroomsL
                 }); // Cancel
     }
 
-    private LevelTransition getPoolRoomsTransition(PlayerComponent playerComponent) {
+    private LevelTransition getPoolRoomsTransition(PlayerComponent playerComponent, Vec3d rallyPos) {
         return new LevelTransition(
                 10,
                 (teleport, tick) -> {

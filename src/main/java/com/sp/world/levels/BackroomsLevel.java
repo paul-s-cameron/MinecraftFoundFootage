@@ -31,6 +31,7 @@ public abstract class BackroomsLevel {
     private boolean shouldSync = false;
     private final HashMap<String, Supplier<AbstractEvent>> events = new HashMap<>();
     private final HashMap<String, LevelTransitionCriteriaCallback> transitions = new HashMap<>();
+    private final LinkedHashMap<String, ExitRule> exitRules = new LinkedHashMap<>();
 
     public BackroomsLevel(String levelId, Codec<? extends ChunkGenerator> chunkGenerator, Vec3d spawnPos, RegistryKey<World> worldKey) {
         this(levelId, chunkGenerator, null, spawnPos, worldKey, SPBRevamped.MOD_ID);
@@ -191,6 +192,38 @@ public abstract class BackroomsLevel {
         this.transitions.remove(name);
     }
 
+    /**
+     * Registers an exit the whole group leaves through together.
+     * <p>
+     * Unlike {@link #registerTransition}, an exit rule does not teleport anyone by itself. The
+     * first player to satisfy its condition opens a rally at their position; the level departs
+     * once everyone has gathered there or the rally's countdown runs out, and every player is
+     * given their transition on the same tick. See {@link com.sp.cca_stuff.RallyComponent}.
+     * <p>
+     * A level that registers no exit rules keeps the old per-player {@link #checkForTransition}
+     * behaviour.
+     */
+    public void registerExitRule(ExitRule rule) {
+        this.exitRules.put(rule.id(), rule);
+    }
+
+    public void unregisterExitRule(String id) {
+        this.exitRules.remove(id);
+    }
+
+    public Collection<ExitRule> getExitRules() {
+        return this.exitRules.values();
+    }
+
+    @Nullable
+    public ExitRule getExitRule(String id) {
+        return this.exitRules.get(id);
+    }
+
+    public boolean hasExitRules() {
+        return !this.exitRules.isEmpty();
+    }
+
 
     public void registerEvent(String name, Supplier<AbstractEvent> event) {
         this.events.put(name, event);
@@ -221,6 +254,36 @@ public abstract class BackroomsLevel {
     public interface LevelTransitionCriteriaCallback {
         List<LevelTransition> predicate(World world, PlayerComponent playerComponent, BackroomsLevel from);
     }
+
+    /**
+     * How long a level waits for the group at an exit before leaving without the stragglers.
+     *
+     * @param radius         how close to the rally point counts as being there
+     * @param countdownTicks how long to wait once the exit has been found
+     */
+    public record RallyPolicy(double radius, int countdownTicks) {
+        public double radiusSquared() {
+            return this.radius * this.radius;
+        }
+    }
+
+    /** Whether this one player is standing at an exit right now. */
+    public interface ExitCondition {
+        boolean test(World world, PlayerComponent playerComponent);
+    }
+
+    /**
+     * Builds one player's transition at the moment the group departs.
+     *
+     * @param rallyPos where the exit was found. Levels that derive arrival coordinates from a
+     *                 player's position should use this instead, so the group lands together
+     *                 rather than scattered by wherever each of them happened to be standing.
+     */
+    public interface ExitTransitionFactory {
+        LevelTransition create(PlayerComponent playerComponent, Vec3d rallyPos);
+    }
+
+    public record ExitRule(String id, ExitCondition condition, ExitTransitionFactory transition, RallyPolicy policy) {}
 
     public record RoomCount(int aRoomCount, int bRoomCount, int cRoomCount, int dRoomCount, int eRoomCount) {
         public RoomCount(int i) {

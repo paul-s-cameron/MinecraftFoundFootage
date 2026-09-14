@@ -31,18 +31,20 @@ public class InfiniteGrassBackroomsLevel extends BackroomsLevel {
 
         this.registerEvent("ambience", InfiniteGrassAmbience::new);
 
-        this.registerTransition((world, playerComponent, from) -> {
-            List<LevelTransition> playerList = new ArrayList<>();
-
-            if (from instanceof InfiniteGrassBackroomsLevel && playerComponent.player.getPos().y > 57.5 && playerComponent.player.isOnGround()) {
-                playerList.add(getOverworldTransition(playerComponent));
-            }
-
-            return playerList;
-        }, this.getLevelId() + "->" + BackroomsLevels.OVERWORLD_REPRESENTING_BACKROOMS_LEVEL.getLevelId());
+        // The way out. Rallying here means the group escapes together rather than one at a time.
+        this.registerExitRule(new ExitRule(
+                this.getLevelId() + "->" + BackroomsLevels.OVERWORLD_REPRESENTING_BACKROOMS_LEVEL.getLevelId(),
+                (world, playerComponent) ->
+                        playerComponent.player.getPos().y > 57.5 && playerComponent.player.isOnGround(),
+                this::getOverworldTransition,
+                new RallyPolicy(6.0, 1800)));
     }
 
-    private LevelTransition getOverworldTransition(PlayerComponent playerComponent) {
+    /**
+     * Arrival is deliberately still per-player: everyone goes back to their own spawn point,
+     * not the rally point.
+     */
+    private LevelTransition getOverworldTransition(PlayerComponent playerComponent, Vec3d rallyPos) {
         Optional<Vec3d> optional = Optional.empty();
         BlockPos blockPos1 = new BlockPos(0, 64, 0);
         if (playerComponent.player instanceof ServerPlayerEntity) {
@@ -61,11 +63,11 @@ public class InfiniteGrassBackroomsLevel extends BackroomsLevel {
 
         return new LevelTransition(
                 1,
-                (teleport, tick) -> {
-                    if (!teleport.playerComponent().player.getWorld().isClient()) {
-                        teleport.playerComponent().loadPlayerSavedInventory();
-                    }
-                },
+                // The inventory is given back by OverworldRepresentingBackroomsLevel.transitionIn.
+                // Restoring it here as well wiped it: the restore clears the live inventory before
+                // refilling it, and it empties the stash on the way out, so the second run cleared
+                // what the first had just handed back.
+                (teleport, tick) -> {},
                 new CrossDimensionTeleport(
                         playerComponent,
                         optional.orElse(blockPos1.toCenterPos()),

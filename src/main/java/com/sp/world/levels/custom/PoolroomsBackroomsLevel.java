@@ -41,19 +41,17 @@ public class PoolroomsBackroomsLevel extends BackroomsLevel {
         this.registerEvent("sunset", PoolroomsSunset::new);
         this.registerEvent("abience", PoolroomsAmbience::new);
 
-        this.registerTransition((world, playerComponent, from) -> {
-            List<LevelTransition> playerList = new ArrayList<>();
-
-            if (from instanceof PoolroomsBackroomsLevel && playerComponent.player.getWorld().getLightLevel(playerComponent.player.getBlockPos()) == 0 && playerComponent.player.getPos().y < 60 && playerComponent.player.getPos().y > 52) {
-                playerList.add(getInfiniteFieldTransition(playerComponent));
-            }
-
-            return playerList;
-
-        }, this.getLevelId() + "->" + BackroomsLevels.INFINITE_FIELD_BACKROOMS_LEVEL.getLevelId());
+        this.registerExitRule(new ExitRule(
+                this.getLevelId() + "->" + BackroomsLevels.INFINITE_FIELD_BACKROOMS_LEVEL.getLevelId(),
+                (world, playerComponent) ->
+                        world.getLightLevel(playerComponent.player.getBlockPos()) == 0
+                                && playerComponent.player.getPos().y < 60
+                                && playerComponent.player.getPos().y > 52,
+                this::getInfiniteFieldTransition,
+                new RallyPolicy(6.0, 1800)));
     }
 
-    private LevelTransition getInfiniteFieldTransition(PlayerComponent playerComponent) {
+    private LevelTransition getInfiniteFieldTransition(PlayerComponent playerComponent, Vec3d rallyPos) {
         return new LevelTransition(
                 1,
                 (teleport, tick) -> {

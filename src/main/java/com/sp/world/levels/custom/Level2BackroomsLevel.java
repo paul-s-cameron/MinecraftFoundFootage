@@ -24,20 +24,16 @@ public class Level2BackroomsLevel extends BackroomsLevel {
         this.registerEvent("warp", Level2Warp::new);
         this.registerEvent("abience", Level2Ambience::new);
 
-        this.registerTransition((world, playerComponent, from) -> {
-            List<LevelTransition> playerList = new ArrayList<>();
-
-            int exitRadius = SPBRevamped.getExitSpawnRadius(world);
-
-            if (from instanceof Level2BackroomsLevel && Math.abs(playerComponent.player.getPos().getZ()) >= exitRadius) {
-                playerList.add(getPoolRoomsTransition(playerComponent));
-            }
-
-            return playerList;
-        }, "level2 -> poolrooms");
+        this.registerExitRule(new ExitRule(
+                "level2 -> poolrooms",
+                (world, playerComponent) ->
+                        Math.abs(playerComponent.player.getPos().getZ()) >= SPBRevamped.getExitSpawnRadius(world),
+                this::getPoolRoomsTransition,
+                // Wider and longer than the mazes: the exit is hundreds of blocks down a corridor.
+                new RallyPolicy(8.0, 2400)));
     }
 
-    private LevelTransition getPoolRoomsTransition(PlayerComponent playerComponent) {
+    private LevelTransition getPoolRoomsTransition(PlayerComponent playerComponent, Vec3d rallyPos) {
         return new LevelTransition(
                 110,
                 (teleport, tick) -> {
