@@ -4,6 +4,7 @@ import com.sp.SPBRevamped;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.entity.custom.SkinWalkerEntity;
+import com.sp.settings.RoundOptions;
 import de.maxhenkel.voicechat.api.VoicechatApi;
 import de.maxhenkel.voicechat.api.VoicechatConnection;
 import de.maxhenkel.voicechat.api.VoicechatPlugin;
@@ -28,6 +29,8 @@ public class BackroomsVoicechatPlugin implements VoicechatPlugin {
     public static Map<UUID, Vector<short[]>> randomSpeakingList;
     private static Map<UUID, short[]> totalSoundData;
     private static Map<UUID, Integer> ticks;
+    /** So a voice chat build that refuses to cancel the packet says so once, not every packet. */
+    private static boolean warnedNotCancellable = false;
 
     @Override
     public String getPluginId() {
@@ -46,6 +49,7 @@ public class BackroomsVoicechatPlugin implements VoicechatPlugin {
     @Override
     public void registerEvents(EventRegistration registration) {
         registration.registerEvent(OpenALSoundEvent.class, this::SkinWalkerVoicesPitchDown);
+        registration.registerEvent(MicrophonePacketEvent.class, this::silenceGhosts);
         registration.registerEvent(MicrophonePacketEvent.class, this::recordPlayersTalking);
         registration.registerEvent(VoicechatServerStoppedEvent.class, this::onServerStop);
         registration.registerEvent(PlayerDisconnectedEvent.class, this::playerDisconnect);
@@ -89,6 +93,34 @@ public class BackroomsVoicechatPlugin implements VoicechatPlugin {
             }
         } catch (Exception e) {
             SPBRevamped.LOGGER.error("Error pitching down the Skinwalker's Voice: {}", String.valueOf(e));
+        }
+    }
+
+    /**
+     * When the host has turned it off, the dead go silent: a ghost's microphone packets are
+     * dropped before they reach anyone.
+     *
+     * <p>Done per packet rather than by muting the connection, because a connection flag would
+     * have to be cleared again on revival, on disconnect and on the round ending — and anything
+     * missed would leave a living player mysteriously unable to speak.
+     */
+    private void silenceGhosts(MicrophonePacketEvent event) {
+        if (RoundOptions.get().ghostsCanTalk()) {
+            return;
+        }
+
+        VoicechatConnection sender = event.getSenderConnection();
+        if (sender == null || !(sender.getPlayer().getPlayer() instanceof PlayerEntity player)) {
+            return;
+        }
+        if (!InitializeComponents.PLAYER.get(player).isGhost()) {
+            return;
+        }
+
+        if (!event.cancel() && !warnedNotCancellable) {
+            warnedNotCancellable = true;
+            SPBRevamped.LOGGER.warn("Simple Voice Chat would not let a microphone packet be"
+                    + " cancelled, so ghosts can still be heard despite the round setting.");
         }
     }
 

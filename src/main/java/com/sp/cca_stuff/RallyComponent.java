@@ -1,6 +1,7 @@
 package com.sp.cca_stuff;
 
 import com.sp.init.BackroomsLevels;
+import com.sp.settings.RoundOptions;
 import com.sp.world.levels.BackroomsLevel;
 import dev.onyxstudios.cca.api.v3.component.Component;
 import dev.onyxstudios.cca.api.v3.component.tick.ServerTickingComponent;
@@ -168,7 +169,7 @@ public class RallyComponent implements Component, ServerTickingComponent {
         this.ruleId = rule.id();
         this.rallyPos = opener.player.getPos();
         this.openedBy = opener.player.getUuid();
-        this.deadline = this.world.getTime() + rule.policy().countdownTicks();
+        this.deadline = this.world.getTime() + countdownTicks(rule);
         this.present = new HashSet<>();
         this.seenPlayers = true;
 
@@ -176,6 +177,16 @@ public class RallyComponent implements Component, ServerTickingComponent {
         for (ServerPlayerEntity player : this.serverPlayers()) {
             player.sendMessage(Text.translatable("spb-revamped.rally.found", name), false);
         }
+    }
+
+    /**
+     * How long this rally gets. The host's setting overrides every level when set; otherwise each
+     * level keeps the countdown its exit rule was registered with, which is deliberately not
+     * uniform — the larger levels allow longer than the rest.
+     */
+    private static int countdownTicks(BackroomsLevel.ExitRule rule) {
+        int override = RoundOptions.get().rallyCountdownOverrideSeconds();
+        return override > 0 ? override * 20 : rule.policy().countdownTicks();
     }
 
     /**
