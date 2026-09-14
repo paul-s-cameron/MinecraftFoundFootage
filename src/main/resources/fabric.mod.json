@@ -39,6 +39,7 @@
 		"cardinal-components": [
 			"spb-revamped:player",
 			"spb-revamped:events",
+			"spb-revamped:rally",
 			"spb-revamped:skw",
 			"spb-revamped:smi"
 		],
