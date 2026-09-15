@@ -4,13 +4,14 @@ import com.sp.SPBRevamped;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.entity.custom.SkinWalkerEntity;
-import com.sp.settings.RoundOptions;
+import com.sp.ghost.GhostManager;
 import de.maxhenkel.voicechat.api.VoicechatApi;
 import de.maxhenkel.voicechat.api.VoicechatConnection;
 import de.maxhenkel.voicechat.api.VoicechatPlugin;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.events.*;
 import de.maxhenkel.voicechat.api.opus.OpusDecoder;
+import de.maxhenkel.voicechat.api.packets.StaticSoundPacket;
 import de.maxhenkel.voicechat.voice.common.Utils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
@@ -30,7 +31,7 @@ public class BackroomsVoicechatPlugin implements VoicechatPlugin {
     private static Map<UUID, short[]> totalSoundData;
     private static Map<UUID, Integer> ticks;
     /** So a voice chat build that refuses to cancel the packet says so once, not every packet. */
-    private static boolean warnedNotCancellable = false;
+    private static volatile boolean warnedNotCancellable = false;
 
     @Override
     public String getPluginId() {
@@ -49,7 +50,7 @@ public class BackroomsVoicechatPlugin implements VoicechatPlugin {
     @Override
     public void registerEvents(EventRegistration registration) {
         registration.registerEvent(OpenALSoundEvent.class, this::SkinWalkerVoicesPitchDown);
-        registration.registerEvent(MicrophonePacketEvent.class, this::silenceGhosts);
+        registration.registerEvent(MicrophonePacketEvent.class, this::routeGhostVoice);
         registration.registerEvent(MicrophonePacketEvent.class, this::recordPlayersTalking);
         registration.registerEvent(VoicechatServerStoppedEvent.class, this::onServerStop);
         registration.registerEvent(PlayerDisconnectedEvent.class, this::playerDisconnect);
@@ -97,30 +98,52 @@ public class BackroomsVoicechatPlugin implements VoicechatPlugin {
     }
 
     /**
-     * When the host has turned it off, the dead go silent: a ghost's microphone packets are
-     * dropped before they reach anyone.
+     * The dead have their own channel: ghosts hear each other, and nobody still in the run hears
+     * them.
      *
-     * <p>Done per packet rather than by muting the connection, because a connection flag would
-     * have to be cleared again on revival, on disconnect and on the round ending — and anything
-     * missed would leave a living player mysteriously unable to speak.
+     * <p>Death is meant to take you out of the run without taking you out of the evening, and those
+     * two pull in opposite directions over voice — a dead player who can still be heard is a
+     * spotter calling out the maze, and a dead player who is simply muted has been sent to sit in
+     * the corner. Giving them each other is the answer to both.
+     *
+     * <p>Their packet is cancelled, which stops Simple Voice Chat distributing it by proximity, and
+     * then sent on by hand to the other ghosts. Nothing is done to what a ghost <i>hears</i>: they
+     * are still standing with whoever they are watching, so the run carries on around them.
+     *
+     * <p>Static rather than positional, because ghosts are scattered across whoever each of them
+     * chose to watch. Positional audio between them would fade with a distance that is an accident
+     * of that choice, which is not a channel, it is a coincidence.
      */
-    private void silenceGhosts(MicrophonePacketEvent event) {
-        if (RoundOptions.get().ghostsCanTalk()) {
-            return;
-        }
-
+    private void routeGhostVoice(MicrophonePacketEvent event) {
         VoicechatConnection sender = event.getSenderConnection();
-        if (sender == null || !(sender.getPlayer().getPlayer() instanceof PlayerEntity player)) {
+        if (sender == null) {
             return;
         }
-        if (!InitializeComponents.PLAYER.get(player).isGhost()) {
+        UUID speaker = sender.getPlayer().getUuid();
+        if (!GhostManager.isGhost(speaker)) {
             return;
         }
 
+        // Cancelling is what keeps the living from hearing this. If a build of Simple Voice Chat
+        // ever refuses, the dead are audible to everyone — a gameplay failure rather than a
+        // cosmetic one, so it is said out loud, once.
         if (!event.cancel() && !warnedNotCancellable) {
             warnedNotCancellable = true;
             SPBRevamped.LOGGER.warn("Simple Voice Chat would not let a microphone packet be"
-                    + " cancelled, so ghosts can still be heard despite the round setting.");
+                    + " cancelled, so players in the run can still hear the dead.");
+        }
+
+        VoicechatServerApi api = event.getVoicechat();
+        StaticSoundPacket packet = event.getPacket().toStaticSoundPacket();
+        for (UUID listener : GhostManager.ghostIds()) {
+            if (listener.equals(speaker)) {
+                continue;
+            }
+            // Null for a ghost who is offline, or who has no voice chat client installed.
+            VoicechatConnection connection = api.getConnectionOf(listener);
+            if (connection != null) {
+                api.sendStaticSoundPacketTo(connection, packet);
+            }
         }
     }
 

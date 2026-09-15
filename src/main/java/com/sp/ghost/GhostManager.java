@@ -16,10 +16,13 @@ import net.minecraft.world.TeleportTarget;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A dead player watches the run out through a teammate's eyes, and rejoins it when the group
@@ -48,7 +51,33 @@ public final class GhostManager {
      */
     private static final Map<UUID, Vec3d> STRANDED = new HashMap<>();
 
+    /**
+     * Who is currently dead, as a set the voice chat plugin can read.
+     *
+     * <p>Microphone packets arrive on Simple Voice Chat's own thread, and deciding who to route a
+     * ghost's voice to means knowing who else is a ghost. Walking the server's player list from
+     * that thread is what this avoids — the list is a plain {@code ArrayList} mutated by the main
+     * thread, so iterating it off-thread is a concurrent-modification crash waiting for a join at
+     * the wrong moment. The component stays the source of truth; this is a projection of it that
+     * happens to be safe to read from anywhere.
+     *
+     * <p>A ghost who logs out stays in here, which is correct rather than a leak: their component
+     * still says ghost, so they are still one when they come back, and meanwhile every lookup of
+     * their connection simply answers null.
+     */
+    private static final Set<UUID> GHOSTS = ConcurrentHashMap.newKeySet();
+
     private GhostManager() {
+    }
+
+    /** The dead, for the voice chat plugin. Safe to read from any thread. */
+    public static Set<UUID> ghostIds() {
+        return Collections.unmodifiableSet(GHOSTS);
+    }
+
+    /** Whether this player is a ghost, without touching their component. Any thread. */
+    public static boolean isGhost(UUID playerId) {
+        return GHOSTS.contains(playerId);
     }
 
     /** Turns a player who has just died into a ghost, watching whoever was nearest to them. */
@@ -58,6 +87,7 @@ public final class GhostManager {
         component.setGhost(true);
         component.setGhostWorld(player.getWorld().getRegistryKey().getValue().toString());
         component.sync();
+        GHOSTS.add(player.getUuid());
 
         player.changeGameMode(GameMode.SPECTATOR);
         attachToNearest(player);
@@ -73,6 +103,7 @@ public final class GhostManager {
         component.setGhost(false);
         component.setGhostWorld("");
         component.sync();
+        GHOSTS.remove(player.getUuid());
         STRANDED.remove(player.getUuid());
 
         player.setCameraEntity(player);
@@ -100,6 +131,7 @@ public final class GhostManager {
             component.sync();
         }
 
+        GHOSTS.remove(player.getUuid());
         STRANDED.remove(player.getUuid());
         player.setCameraEntity(player);
         restoreVitals(player);
@@ -164,6 +196,17 @@ public final class GhostManager {
      * moved on without them.
      */
     public static void tick(ServerPlayerEntity player, PlayerComponent component) {
+        // The set above is written at every point that changes ghost state, which keeps it exact
+        // from the tick a player dies. This is what covers everything that does not go through
+        // those points: ghost state is persisted, so a server restart brings back ghosts whose
+        // deaths this process never saw. Reconciling here means the component stays the one source
+        // of truth and the set cannot drift from it for longer than a tick.
+        if (component.isGhost()) {
+            GHOSTS.add(player.getUuid());
+        } else {
+            GHOSTS.remove(player.getUuid());
+        }
+
         if (Revival.isDowned(player)) {
             // Bleeding out for ninety seconds with nobody alive to reach you is not a rescue
             // moment, it is a wait. Hardcore Revival's own "playing alone" switch does not cover

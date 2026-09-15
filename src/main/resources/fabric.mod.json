@@ -35,7 +35,8 @@
 			"com.sp.sounds.voicechat.BackroomsVoicechatPlugin"
 		],
 		"fabric-gametest": [
-			"com.sp.gametest.SmilerGameTest"
+			"com.sp.gametest.SmilerGameTest",
+			"com.sp.gametest.GhostGameTest"
 		]
 	},
 	"custom": {

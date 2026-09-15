@@ -108,6 +108,7 @@ public class SmilerGameTest implements FabricGameTest {
         context.assertFalse(SmilerSpawner.isObserved(context.getWorld(), ahead),
                 "a spot behind a wall should not be observed");
 
+        removeMockPlayer(context, player);
         context.complete();
     }
 
@@ -145,7 +146,19 @@ public class SmilerGameTest implements FabricGameTest {
                         + " eye=" + player.getEyePos()
                         + " look=" + player.getRotationVec(1.0f)
                         + " target=" + feetOf(context, 6, 3));
+        removeMockPlayer(context, player);
         context.complete();
+    }
+
+    /**
+     * Mock players are added to the world through the real connect path, so they outlive the test
+     * that made them — and isObserved asks about <em>every</em> player in the world, so one left
+     * standing by an earlier test answers for it. That is not hypothetical: adding the ghost tests
+     * put enough leftovers in the world for one of them to be looking at the spot these tests need
+     * unobserved. Every test takes its own players away again.
+     */
+    private static void removeMockPlayer(TestContext context, ServerPlayerEntity player) {
+        context.getWorld().getServer().getPlayerManager().remove(player);
     }
 
     /**

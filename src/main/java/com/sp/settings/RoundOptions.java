@@ -15,9 +15,6 @@ package com.sp.settings;
 public final class RoundOptions {
 
     public interface Source {
-        /** Whether a dead player riding along as a ghost can still be heard over voice chat. */
-        boolean ghostsCanTalk();
-
         /**
          * Seconds to give every rally, overriding the level's own timing.
          *
@@ -50,11 +47,6 @@ public final class RoundOptions {
 
     /** What this mod does with no lobby installed. Each answer is the pre-settings behaviour. */
     private static final Source DEFAULTS = new Source() {
-        @Override
-        public boolean ghostsCanTalk() {
-            return true;
-        }
-
         @Override
         public int rallyCountdownOverrideSeconds() {
             return 0;
