@@ -1,10 +1,10 @@
 package com.sp.entity.custom;
 
-import com.sp.SPBRevamped;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.cca_stuff.SmilerComponent;
 import com.sp.compat.hardcorerevival.Revival;
+import com.sp.entity.SmilerSpawner;
 import com.sp.init.BackroomsLevels;
 import com.sp.init.ModDamageTypes;
 import com.sp.world.levels.BackroomsLevelWithLights;
@@ -15,6 +15,7 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
@@ -53,9 +54,59 @@ public class SmilerEntity extends MobEntity {
     private static final double STRIKE_RANGE = 5.0;
 
     /** Slower than a walk: standing still or being cornered is what kills you, not the chase. */
-    private static final double CREEP_SPEED = 0.55;
+    /**
+     * Navigation speeds are a multiplier on the movement-speed attribute, and the pair below was
+     * calibrated against measurement rather than arithmetic: a smiler logged 1.02 blocks/sec at
+     * CREEP_SPEED 0.55 against an attribute of 0.28. The attribute is now 0.5 so the rush needs
+     * no absurd multiplier, and the creep multiplier is scaled down by the same factor - the
+     * product is unchanged, so the creep still walks at that measured 1.02 blocks/sec.
+     */
+    private static final double CREEP_SPEED = 0.308;
+    /**
+     * The rush, in the open, once it has been seen. A player walks 4.32 blocks/sec and sprints
+     * 5.61; this works out to about 6.1, so sprinting away buys time and distance but never an
+     * escape. Turning the light off and crouching away still does, which is the point - flight is
+     * meant to be the losing answer.
+     */
+    private static final double RUSH_SPEED = 1.84;
+    /** Close enough that the creep is over and it simply comes at you. */
+    private static final double RUSH_RANGE = 9.0;
+
+    /**
+     * A smiler does nothing to a player who has never laid eyes on it. Relocation only ever lands
+     * one where it cannot be seen, so without this gate the rush always began behind the player
+     * and the first thing they knew of the creature was the downing - which is not a scare, it is
+     * an unexplained death. Being looked at once is the price of admission; after that it is free
+     * to act, and it never needs looking at again.
+     */
+    private static final double ACKNOWLEDGE_RANGE = 32.0;
+    /**
+     * How near the middle of the screen it has to fall to count as looked at. 0.75 is about 41
+     * degrees off centre, so anywhere comfortably on screen rather than only dead ahead.
+     */
+    private static final double ACKNOWLEDGE_DOT = 0.75;
     /** Repathing every tick is wasted work; nobody outmanoeuvres a creep in half a second. */
     private static final int REPATH_INTERVAL_TICKS = 10;
+
+    /**
+     * A smiler walks slower than a crouching player, so its walk can never close a gap - and it is
+     * not supposed to. What costs you ground is looking away: while nobody can see it, it gains
+     * this much in one unseen step. Reappearing out of sight both before and after is what makes it
+     * read as the thing having moved on its own rather than as a teleport.
+     */
+    private static final double RELOCATE_STEP = 7.0;
+    /** How often an unseen step is allowed, so it gains ground in beats rather than a glide. */
+    private static final int RELOCATE_INTERVAL_TICKS = 30;
+    /**
+     * Where an unseen step hands over to the rush. This has to sit inside RUSH_RANGE or the smiler
+     * arrives at a distance only the creep can close, and the creep is slower than walking - which
+     * makes the strike unreachable however many times it steps. A floor above RUSH_RANGE is the
+     * bug this constant exists to prevent.
+     */
+    private static final double RELOCATE_MIN_DISTANCE = STRIKE_RANGE + 3.0;
+    /** Sideways spread, so it does not file in along one straight line. */
+    private static final float RELOCATE_SPREAD_DEGREES = 50.0f;
+    private static final int RELOCATE_ATTEMPTS = 8;
 
     /** Comfortably past any health pool. Hardcore Revival turns the would-be kill into a downing. */
     private static final float STRIKE_DAMAGE = 1000.0f;
@@ -67,8 +118,6 @@ public class SmilerEntity extends MobEntity {
     /** How far a player must move in a tick to be making noise with it. */
     private static final double FOOTSTEP_MOVEMENT = 0.01;
 
-    /** A smiler that cannot path says so a few times and then stops filling the log. */
-    private static final int MAX_PATH_COMPLAINTS = 3;
 
     private final SmilerComponent component;
     private int finalTicks;
@@ -78,11 +127,14 @@ public class SmilerEntity extends MobEntity {
     private UUID locked;
     private int provokedFor;
     private int repathIn;
+    private int relocateIn;
+    /** Whether the last path was asked for at rushing speed. */
+    private boolean rushing;
+    /** Whether the locked player has ever actually seen this smiler. */
+    private boolean acknowledged;
     private int strikeCooldown;
     /** Whether the last attempt to path actually took; false means creep in a straight line. */
     private boolean pathing;
-    private int pathComplaints;
-    private boolean announcedStalk;
 
     public SmilerEntity(EntityType<? extends MobEntity> entityType, World world) {
         super(entityType, world);
@@ -149,11 +201,18 @@ public class SmilerEntity extends MobEntity {
         if (this.repathIn > 0) {
             this.repathIn--;
         }
+        if (this.relocateIn > 0) {
+            this.relocateIn--;
+        }
 
         PlayerEntity target = this.lockedTarget();
         if (target == null) {
             this.getNavigation().stop();
             return;
+        }
+
+        if (!this.acknowledged && this.hasBeenSeenBy(target)) {
+            this.acknowledged = true;
         }
 
         if (!this.isStalking(target)) {
@@ -163,11 +222,6 @@ public class SmilerEntity extends MobEntity {
             return;
         }
 
-        if (!this.announcedStalk) {
-            this.announcedStalk = true;
-            SPBRevamped.LOGGER.info("Smiler locked on {} and started stalking.", target.getEntityName());
-        }
-
         this.getLookControl().lookAt(target, 30.0f, 30.0f);
 
         if (this.squaredDistanceTo(target) <= STRIKE_RANGE * STRIKE_RANGE) {
@@ -175,21 +229,23 @@ public class SmilerEntity extends MobEntity {
             return;
         }
 
+        if (this.relocateIn <= 0) {
+            this.relocateIn = RELOCATE_INTERVAL_TICKS;
+            this.tryRelocateCloser(target);
+        }
+
+        // Crossing into the rush must take effect now rather than whenever the repath timer
+        // happens to come round, or the reveal is a smiler still creeping for half a second.
+        boolean shouldRush = this.squaredDistanceTo(target) <= RUSH_RANGE * RUSH_RANGE;
+        if (shouldRush != this.rushing) {
+            this.rushing = shouldRush;
+            this.repathIn = 0;
+        }
+
         if (this.repathIn <= 0) {
             this.repathIn = REPATH_INTERVAL_TICKS;
-            this.pathing = this.getNavigation().startMovingTo(target, CREEP_SPEED);
-
-            if (!this.pathing && this.pathComplaints < MAX_PATH_COMPLAINTS) {
-                this.pathComplaints++;
-                BlockPos below = this.getBlockPos().down();
-                SPBRevamped.LOGGER.warn("Smiler at {} could not path to {} ({} blocks away)."
-                                + " onGround={} noGravity={} noClip={} velocityY={} fallDistance={}"
-                                + " standingOn={}",
-                        this.getBlockPos().toShortString(), target.getEntityName(),
-                        Math.round(this.distanceTo(target)), this.isOnGround(), this.hasNoGravity(),
-                        this.noClip, String.format("%.4f", this.getVelocity().y), this.fallDistance,
-                        this.getWorld().getBlockState(below));
-            }
+            this.pathing = this.getNavigation()
+                    .startMovingTo(target, this.rushing ? RUSH_SPEED : CREEP_SPEED);
         }
 
         if (!this.pathing) {
@@ -211,6 +267,76 @@ public class SmilerEntity extends MobEntity {
      * What it gives up is going around corners, which is why a path is still preferred when the
      * navigator will give us one.
      */
+    /**
+     * One unseen step closer, or nothing. Every condition here is a promise to the player: it only
+     * moves while unwatched, it only does so while provoked, and it never materialises on top of
+     * you. Turn the light off and crouch away and it is never stalking, so it never takes a step -
+     * the counterplay is not a reflex check, it is a decision.
+     */
+    /** On screen, near enough to make out, and with nothing in the way. */
+    private boolean hasBeenSeenBy(PlayerEntity player) {
+        Vec3d eyes = player.getEyePos();
+        Vec3d toFace = this.getEyePos().subtract(eyes);
+        double distance = toFace.length();
+        if (distance < 1.0E-4 || distance > ACKNOWLEDGE_RANGE) {
+            return false;
+        }
+        if (player.getRotationVec(1.0f).normalize().dotProduct(toFace.normalize())
+                < ACKNOWLEDGE_DOT) {
+            return false;
+        }
+        return player.canSee(this);
+    }
+
+    private boolean tryRelocateCloser(PlayerEntity target) {
+        if (!(this.getWorld() instanceof ServerWorld world)) {
+            return false;
+        }
+
+        Vec3d here = this.getPos();
+        // Being looked at right now forbids it outright: the whole effect is that the move is the
+        // one thing you never catch happening.
+        if (SmilerSpawner.isObserved(world, here)) {
+            return false;
+        }
+
+        double distance = here.distanceTo(target.getPos());
+        if (distance <= RELOCATE_MIN_DISTANCE) {
+            return false;
+        }
+
+        Vec3d toward = new Vec3d(target.getX() - here.x, 0.0, target.getZ() - here.z);
+        if (toward.lengthSquared() < 1.0E-6) {
+            return false;
+        }
+        toward = toward.normalize();
+        double step = Math.min(RELOCATE_STEP, distance - RELOCATE_MIN_DISTANCE);
+
+        for (int attempt = 0; attempt < RELOCATE_ATTEMPTS; attempt++) {
+            // Straight at the target first, then progressively off to one side, so a blocked
+            // direct line becomes an arrival from an angle rather than no arrival at all.
+            float spread = attempt == 0
+                    ? 0.0f
+                    : (world.getRandom().nextFloat() * 2.0f - 1.0f) * RELOCATE_SPREAD_DEGREES;
+            Vec3d offset = toward.rotateY((float) Math.toRadians(spread)).multiply(step);
+            Vec3d candidate = new Vec3d(Math.floor(here.x + offset.x) + 0.5, here.y,
+                    Math.floor(here.z + offset.z) + 0.5);
+
+            if (!SmilerSpawner.isStandable(world, candidate)
+                    || SmilerSpawner.isObserved(world, candidate)) {
+                continue;
+            }
+
+            this.getNavigation().stop();
+            this.refreshPositionAndAngles(candidate.x, candidate.y, candidate.z,
+                    this.getYaw(), this.getPitch());
+            this.getLookControl().lookAt(target, 30.0f, 30.0f);
+            return true;
+        }
+
+        return false;
+    }
+
     private void creepDirectlyAt(PlayerEntity target) {
         Vec3d toTarget = target.getPos().subtract(this.getPos());
         Vec3d flat = new Vec3d(toTarget.x, 0.0, toTarget.z);
@@ -219,7 +345,8 @@ public class SmilerEntity extends MobEntity {
         }
 
         Vec3d step = flat.normalize()
-                .multiply(this.getAttributeValue(EntityAttributes.GENERIC_MOVEMENT_SPEED) * CREEP_SPEED);
+                .multiply(this.getAttributeValue(EntityAttributes.GENERIC_MOVEMENT_SPEED)
+                        * (this.rushing ? RUSH_SPEED : CREEP_SPEED));
         this.setVelocity(step.x, this.getVelocity().y, step.z);
         this.velocityDirty = true;
     }
@@ -243,6 +370,14 @@ public class SmilerEntity extends MobEntity {
 
     /** Lit, loud, or recently hit. Any one of them is enough; none of them and it stops. */
     private boolean isStalking(PlayerEntity target) {
+        // Ahead of being seen there is no stalking at all, and since the strike, the unseen step
+        // and the rush all sit behind this one check, an unacknowledged smiler simply stands in
+        // the dark and watches - which is the only thing a player who has not found it yet can
+        // fairly be subjected to.
+        if (!this.acknowledged) {
+            return false;
+        }
+
         if (this.provokedFor > 0) {
             return true;
         }
@@ -279,6 +414,8 @@ public class SmilerEntity extends MobEntity {
                 && this.isVictim(attacker)) {
             this.locked = attacker.getUuid();
             this.provokedFor = PROVOKED_TICKS;
+            // Whoever landed a hit has plainly found it, whatever the view cone says.
+            this.acknowledged = true;
         }
         return super.damage(source, amount);
     }
@@ -309,7 +446,12 @@ public class SmilerEntity extends MobEntity {
             }
         }
 
+        // A different player inherits none of the last one's acquaintance with it.
+        UUID previous = this.locked;
         this.locked = nearest == null ? null : nearest.getUuid();
+        if (!java.util.Objects.equals(previous, this.locked)) {
+            this.acknowledged = false;
+        }
         this.provokedFor = 0;
         return nearest;
     }
@@ -338,7 +480,7 @@ public class SmilerEntity extends MobEntity {
                 // simply does not work, and then regret having tried.
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000)
                 .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1000)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.28)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.5)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, AWARENESS_RANGE);
     }
 }

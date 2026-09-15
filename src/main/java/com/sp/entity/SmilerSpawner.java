@@ -116,7 +116,7 @@ public final class SmilerSpawner {
     }
 
     /** Somewhere a smiler can stand: open at head height, on something solid. */
-    private static boolean isStandable(ServerWorld world, Vec3d pos) {
+    public static boolean isStandable(ServerWorld world, Vec3d pos) {
         BlockPos feet = BlockPos.ofFloored(pos);
         return !world.getBlockState(feet).blocksMovement()
                 && !world.getBlockState(feet.up()).blocksMovement()
