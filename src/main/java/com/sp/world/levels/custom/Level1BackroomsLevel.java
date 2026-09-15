@@ -23,10 +23,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Level1BackroomsLevel extends BackroomsLevel implements BackroomsLevelWithLights {
+    /**
+     * Three per player over a thirty-second blackout, arriving about every seven seconds. Nothing
+     * retires, so this is also how many a blackout produces in total — they accumulate and are all
+     * dispelled together when the lights come back.
+     */
+    private static final SmilerPolicy SMILER_POLICY = new SmilerPolicy(3, 140, 15.0);
+
     private Level0BackroomsLevel.LightState lightState = BackroomsLevelWithLights.LightState.ON;
 
     public Level1BackroomsLevel() {
         super("level1", Level1ChunkGenerator.CODEC, new RoomCount(6, 24, 24, 12, 24), new Vec3d(6, 22, 3), BackroomsLevels.LEVEL1_WORLD_KEY);
+    }
+
+    /** Only while the lights are out — the blackout is the whole of a smiler's existence here. */
+    @Override
+    public SmilerPolicy smilerPolicy() {
+        return this.lightState == BackroomsLevelWithLights.LightState.BLACKOUT ? SMILER_POLICY : null;
     }
 
     @Override
@@ -135,7 +148,7 @@ public class Level1BackroomsLevel extends BackroomsLevel implements BackroomsLev
 
     @Override
     public void readFromNbt(NbtCompound nbt) {
-        this.lightState = BackroomsLevelWithLights.LightState.valueOf(nbt.getString("lightState"));
+        this.lightState = BackroomsLevelWithLights.restored(nbt.getString("lightState"));
 
     }
 

@@ -88,6 +88,17 @@ public abstract class BackroomsLevel {
     }
 
     /**
+     * How smilers populate this level, or null for a level that has none.
+     *
+     * <p>Only Level 1 has one, and only while its lights are out. The policy is a value rather
+     * than a constant so another level can be given one without the spawner learning anything.
+     */
+    @Nullable
+    public SmilerPolicy smilerPolicy() {
+        return null;
+    }
+
+    /**
      * If the level renders the sky.
      * Also look at {@link #rendersClouds()}.
      * @return if the sky renders.
@@ -265,6 +276,20 @@ public abstract class BackroomsLevel {
         public double radiusSquared() {
             return this.radius * this.radius;
         }
+    }
+
+    /**
+     * How many smilers a level grows, and how fast.
+     *
+     * <p>There is no lifespan here on purpose: nothing retires, so a smiler that arrives is still
+     * standing when the lights come back. That makes {@code maxNearPlayer} the only control — with
+     * nothing leaving, how many may exist at once is also how many a blackout produces.
+     *
+     * @param maxNearPlayer   how many may be alive near one player
+     * @param spawnIntervalTicks how long between arrivals
+     * @param spawnDistance   how far from the player one is placed
+     */
+    public record SmilerPolicy(int maxNearPlayer, int spawnIntervalTicks, double spawnDistance) {
     }
 
     /** Whether this one player is standing at an exit right now. */

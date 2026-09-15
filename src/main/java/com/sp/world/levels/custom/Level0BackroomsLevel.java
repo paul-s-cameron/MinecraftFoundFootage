@@ -119,7 +119,7 @@ public class Level0BackroomsLevel extends BackroomsLevel implements BackroomsLev
     public void readFromNbt(NbtCompound nbt) {
         this.blackoutCount = nbt.getInt("blackoutCount");
         this.intercomCount = nbt.getInt("intercomCount");
-        this.lightState = LightState.valueOf(nbt.getString("lightState"));
+        this.lightState = BackroomsLevelWithLights.restored(nbt.getString("lightState"));
     }
 
     @Override

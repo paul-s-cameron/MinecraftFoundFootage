@@ -183,7 +183,7 @@ public class Level324Backroomslevel extends BackroomsLevel implements BackroomsL
 
     @Override
     public void readFromNbt(NbtCompound nbt) {
-        this.lightState = BackroomsLevelWithLights.LightState.valueOf(nbt.getString("lightState"));
+        this.lightState = BackroomsLevelWithLights.restored(nbt.getString("lightState"));
 
     }
 

@@ -1,6 +1,10 @@
 package com.sp.cca_stuff;
 
 import com.sp.init.BackroomsLevels;
+import com.sp.world.events.AbstractEvent;
+import com.sp.world.events.generic.lights.LightLevelBlackout;
+import com.sp.world.events.level1.Level1Blackout;
+import com.sp.world.levels.BackroomsLevelWithLights;
 import com.sp.settings.RoundOptions;
 import com.sp.world.levels.BackroomsLevel;
 import dev.onyxstudios.cca.api.v3.component.Component;
@@ -40,6 +44,18 @@ import java.util.UUID;
  * given player may see comes with the objective HUD.
  */
 public class RallyComponent implements Component, ServerTickingComponent {
+    /**
+     * How long before a rally departs the lights fail, on levels that have any.
+     *
+     * <p>Not on open: the "exit found" beat should land first and the group should converge on it
+     * while they can still see. Taking the lights for the last stretch turns the wait into a
+     * climax; taking them for the whole countdown would just be a long dark wait.
+     *
+     * <p>Matches the blackout's own duration, so it runs out at roughly the moment the level
+     * departs rather than ending early and handing the group a lit exit.
+     */
+    private static final int BLACKOUT_LEAD_TICKS = 600;
+
     /** How long an operator's {@code /rally cancel} suppresses the exit that was just cancelled. */
     private static final int CANCEL_COOLDOWN_TICKS = 200;
     /** Leaving the rally needs a little more than arriving, so pacing the edge does not flicker. */
@@ -59,6 +75,8 @@ public class RallyComponent implements Component, ServerTickingComponent {
      * must not be thrown away on the first tick after a restart, when nobody has reconnected yet.
      */
     private boolean seenPlayers = false;
+    /** Whether this rally has already taken the lights. Runtime only; a restart may retrigger. */
+    private boolean blackedOut = false;
     private long reopenBlockedUntil = 0L;
 
     public RallyComponent(World world) {
@@ -164,6 +182,7 @@ public class RallyComponent implements Component, ServerTickingComponent {
         this.seenPlayers = true;
 
         this.updatePresence(counted, rule);
+        this.failLightsNearTheEnd();
 
         // Nothing is pushed to the players while a rally runs: the objective line already shows
         // the distance, the countdown and who is there, and recomputes them client-side every
@@ -324,12 +343,46 @@ public class RallyComponent implements Component, ServerTickingComponent {
         return InitializeComponents.PLAYER.get(player).isGhost();
     }
 
+    /**
+     * Kills the lights for the last stretch of the countdown, on a level that has any.
+     *
+     * <p>This is what gives a rally teeth. Gathering means standing still in one place for a fixed
+     * time you cannot shorten, and on Level 1 that now happens in the dark, with the only light
+     * being whatever the group is carrying — which is exactly what a smiler comes to.
+     */
+    private void failLightsNearTheEnd() {
+        if (this.blackedOut || this.world.getTime() < this.deadline - BLACKOUT_LEAD_TICKS) {
+            return;
+        }
+        // Set regardless of what happens below: a level with no lights should not be asked again
+        // every tick for the rest of the countdown.
+        this.blackedOut = true;
+
+        if (!(BackroomsLevels.getLevel(this.world).orElse(null) instanceof BackroomsLevelWithLights lit)
+                || lit.getLightState() == BackroomsLevelWithLights.LightState.BLACKOUT) {
+            return;
+        }
+
+        AbstractEvent blackout = this.world.getRegistryKey() == BackroomsLevels.LEVEL1_WORLD_KEY
+                ? new Level1Blackout()
+                : new LightLevelBlackout();
+
+        WorldEvents events = InitializeComponents.EVENTS.get(this.world);
+        if (events.getActiveEvent() != null) {
+            events.getActiveEvent().finish(this.world);
+        }
+        events.setActiveEvent(blackout);
+        blackout.init(this.world);
+        events.ticks = 0;
+    }
+
     private void clear() {
         this.ruleId = null;
         this.rallyPos = null;
         this.openedBy = null;
         this.deadline = 0L;
         this.present = new HashSet<>();
+        this.blackedOut = false;
     }
 
     // --- persistence ----------------------------------------------------------------------

@@ -55,7 +55,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
     private final SimpleInventory playerSavedOffhandInventory = new SimpleInventory(1);
     private final Random random = new Random();
 
-    private int smilerSpawnDelay = 80;
 
     private int stamina;
     private boolean tired;
@@ -521,10 +520,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
             this.setTeleportingTimer(teleportingTimer - 1);
         }
 
-        if (BackroomsLevels.isInBackroomsLevel(player.getWorld(), BackroomsLevels.LEVEL324_BACKROOMS_LEVEL) && player.getPos().subtract(0, 64, 0).lengthSquared() > 10000 && player.getPos().y > 60) {
-            summonSmilers();
-        }
-
         //*Update Entity Visibility
         updateEntityVisibility();
 
@@ -533,23 +528,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         }
         
         shouldSync();
-    }
-
-    private void summonSmilers() {
-        if (this.smilerSpawnDelay < 0) {
-            SmilerEntity smiler = ModEntities.SMILER_ENTITY.create(this.player.getWorld());
-
-            BlockPos.Mutable mutable = new BlockPos.Mutable();
-            float randomAngle = random.nextFloat() * 360.0f;
-            Vec3d spawnPos = new Vec3d(0, 0, 15).rotateY(randomAngle).add(player.getPos());
-            if (!this.player.getWorld().getBlockState(mutable.set(spawnPos.x, spawnPos.y, spawnPos.z)).blocksMovement()) {
-                smiler.refreshPositionAndAngles(Math.floor(spawnPos.x) + 0.5f, spawnPos.y, Math.floor(spawnPos.z) + 0.5f, 0.0f, 0.0f);
-                this.player.getWorld().spawnEntity(smiler);
-                smilerSpawnDelay = 80;
-            }
-        }
-
-        smilerSpawnDelay--;
     }
 
     private void updateStamina() {

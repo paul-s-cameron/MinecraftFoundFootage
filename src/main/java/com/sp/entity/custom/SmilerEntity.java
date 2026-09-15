@@ -20,9 +20,14 @@ import net.minecraft.world.World;
 import java.util.List;
 
 public class SmilerEntity extends MobEntity {
+    /**
+     * Long enough for the client's fade-out to finish. It runs over 30 ticks, so the old value of
+     * 20 removed the entity at about a third opacity — it popped instead of fading.
+     */
+    private static final int FADE_OUT_TICKS = 30;
+
     private final SmilerComponent component;
     private int finalTicks;
-    private float liveTime;
 
     public SmilerEntity(EntityType<? extends MobEntity> entityType, World world) {
         super(entityType, world);
@@ -33,8 +38,17 @@ public class SmilerEntity extends MobEntity {
             this.component.setRandomTexture(random.nextBetween(1,3));
             this.component.sync();
         }
-        this.finalTicks = 20;
-        this.liveTime = 100;
+        this.finalTicks = FADE_OUT_TICKS;
+    }
+
+    /**
+     * A smiler exists only for the blackout that made it, so it has no business surviving a save.
+     * Without this one left in an unloaded chunk would come back later, in a lit level, and only
+     * be cleaned up once something ticked it.
+     */
+    @Override
+    public boolean shouldSave() {
+        return false;
     }
 
     @Override
@@ -45,41 +59,18 @@ public class SmilerEntity extends MobEntity {
     @Override
     public void tick() {
         if(!this.getWorld().isClient) {
-            if(!this.component.shouldDisappear()) {
-                if (this.getWorld().getClosestPlayer(this, 15) != null) {
-                    List<? extends PlayerEntity> playerList = this.getWorld().getPlayers(TargetPredicate.createNonAttackable().setBaseMaxDistance(15), this, this.getBoundingBox().expand(15, 1, 15));
-
-                    for (PlayerEntity player : playerList) {
-                        if (this.shouldDisappear(player)) {
-                            this.component.setShouldDisappear(true);
-                            this.component.sync();
-                            break;
-                        }
-                    }
-                } else {
-                    this.component.setShouldDisappear(true);
-                    this.component.sync();
-                }
-
-                if (this.liveTime > 0) {
-                    this.liveTime--;
-                } else {
-                    this.component.setShouldDisappear(true);
-                    this.component.sync();
-                }
+            // The lights coming back is the only thing that dispels a smiler, and the only vanish
+            // a player is ever meant to witness — light destroys them, which is the creature's own
+            // rule, so seeing it happen is the point rather than a seam. Nothing expires them and
+            // nothing retires them quietly: one that arrives is still standing at the end.
+            if (!this.component.shouldDisappear() && !this.inBlackout()) {
+                this.component.setShouldDisappear(true);
+                this.component.sync();
             }
-
-
 
             if(this.component.shouldDisappear()) {
                 this.finalTicks--;
                 if(this.finalTicks <= 0){
-                    this.discard();
-                }
-            }
-
-            if (((BackroomsLevels.getLevel(this.getWorld()).orElse(BackroomsLevels.OVERWORLD_REPRESENTING_BACKROOMS_LEVEL)) instanceof Level1BackroomsLevel level)) {
-                if (level.getLightState() != BackroomsLevelWithLights.LightState.BLACKOUT) {
                     this.discard();
                 }
             }
@@ -89,10 +80,10 @@ public class SmilerEntity extends MobEntity {
         super.tick();
     }
 
-    private boolean shouldDisappear(PlayerEntity player){
-        PlayerComponent playerComponent = InitializeComponents.PLAYER.get(player);
-        return playerComponent.isFlashLightOn() &&
-                this.isPlayerStaring(player);
+    private boolean inBlackout() {
+        return this.getWorld().getRegistryKey() == BackroomsLevels.LEVEL1_WORLD_KEY
+                && BackroomsLevels.getLevel(this.getWorld()).orElse(null) instanceof Level1BackroomsLevel level
+                && level.getLightState() == BackroomsLevelWithLights.LightState.BLACKOUT;
     }
 
     //From Enderman. Don't need anything too fancy
