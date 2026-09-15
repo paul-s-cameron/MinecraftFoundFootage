@@ -5,6 +5,21 @@ plugins {
 
 loom {
 	accessWidenerPath = file("src/main/resources/spb-revamped.accesswidener")
+
+	// gradlew runGametest boots a headless server, places an empty 8x8 structure and runs the
+	// methods registered by the fabric-gametest entrypoint. It is the only way to assert anything
+	// about entity behaviour without a person playing the game, which the smiler rework needed
+	// three times over.
+	runs {
+		gametest {
+			server()
+			name = "Game Test"
+			source = sourceSets.main
+			vmArg "-Dfabric-api.gametest"
+			vmArg "-Dfabric-api.gametest.report-file=${project.buildDir}/junit.xml"
+			runDir "build/gametest"
+		}
+	}
 }
 
 version = project.mod_version

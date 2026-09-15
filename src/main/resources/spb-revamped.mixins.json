@@ -8,7 +8,6 @@
     "EntityMixin",
     "LevelPropertiesMixin",
     "LivingEntityMixin",
-    "MutableUniformAccessMixin",
     "PlaySprintSoundMixin",
     "PlayerEntityMixin",
     "ServerPropertiesHandlerMixin",
@@ -19,7 +18,6 @@
     "ghost.ServerPlayNetworkHandlerMixin",
     "ghost.ServerPlayerEntityMixin",
     "rain.AlwaysRainLevelPropertiesMixin",
-    "rain.LightningSkyLightingUpLightningEntity",
     "rain.ServerWorldNoHorseTrapMixin",
     "respawnsystem.PlayerManagerMixin",
     "skinstolen.ServerPlayerEntityMixin",
@@ -32,6 +30,8 @@
     "defaultRequire": 1
   },
   "client": [
+    "MutableUniformAccessMixin",
+    "rain.LightningSkyLightingUpLightningEntity",
     "AOFixMixin",
     "CameraMixin",
     "DinoDebugRendererMixin",

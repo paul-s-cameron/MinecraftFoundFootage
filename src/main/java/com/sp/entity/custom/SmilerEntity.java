@@ -53,7 +53,6 @@ public class SmilerEntity extends MobEntity {
     /** Close enough to take someone. Reached while stalking, this is immediate. */
     private static final double STRIKE_RANGE = 5.0;
 
-    /** Slower than a walk: standing still or being cornered is what kills you, not the chase. */
     /**
      * Navigation speeds are a multiplier on the movement-speed attribute, and the pair below was
      * calibrated against measurement rather than arithmetic: a smiler logged 1.02 blocks/sec at
@@ -85,6 +84,7 @@ public class SmilerEntity extends MobEntity {
      * degrees off centre, so anywhere comfortably on screen rather than only dead ahead.
      */
     private static final double ACKNOWLEDGE_DOT = 0.75;
+
     /** Repathing every tick is wasted work; nobody outmanoeuvres a creep in half a second. */
     private static final int REPATH_INTERVAL_TICKS = 10;
 
@@ -117,6 +117,34 @@ public class SmilerEntity extends MobEntity {
 
     /** How far a player must move in a tick to be making noise with it. */
     private static final double FOOTSTEP_MOVEMENT = 0.01;
+
+    static {
+        // The mistake that shipped twice, made loud and made early. These three distances are not
+        // independent: the unseen step hands over to the rush, so its floor has to sit between the
+        // strike and the rush. Above RUSH_RANGE, the gap it leaves can only be closed by a creep
+        // slower than a walking player and the strike is unreachable however many steps it takes -
+        // which is exactly what happened, once as a floor of 7 against a strike range of 5, and
+        // once as no relocation at all. At or below STRIKE_RANGE the step delivers the kill itself,
+        // out of sight, and the player never sees what hit them.
+        //
+        // This throws at class load, so the dedicated-server boot in CLAUDE.md catches it. A tuning
+        // constant can only be wrong here because somebody edited it, never because of anything a
+        // player did, so failing loudly is right.
+        if (RELOCATE_MIN_DISTANCE <= STRIKE_RANGE || RELOCATE_MIN_DISTANCE >= RUSH_RANGE) {
+            throw new IllegalStateException(String.format(
+                    "Smiler distances must satisfy STRIKE_RANGE < RELOCATE_MIN_DISTANCE < RUSH_RANGE,"
+                            + " got %.1f < %.1f < %.1f",
+                    STRIKE_RANGE, RELOCATE_MIN_DISTANCE, RUSH_RANGE));
+        }
+        // Measured, not derived: 1.02 blocks/sec at a CREEP_SPEED of 0.55 against an attribute of
+        // 0.28. The rush only means anything if it outruns a sprint, and it cannot do that while it
+        // is the slower of the two multipliers.
+        if (RUSH_SPEED <= CREEP_SPEED) {
+            throw new IllegalStateException(String.format(
+                    "Smiler RUSH_SPEED (%.3f) must exceed CREEP_SPEED (%.3f)",
+                    RUSH_SPEED, CREEP_SPEED));
+        }
+    }
 
 
     private final SmilerComponent component;
