@@ -7,18 +7,26 @@ import com.sp.init.BackroomsLevels;
 import com.sp.world.levels.BackroomsLevelWithLights;
 import com.sp.world.levels.custom.Level1BackroomsLevel;
 import net.minecraft.entity.EntityType;
-import net.minecraft.entity.ai.TargetPredicate;
-import net.minecraft.entity.ai.goal.ActiveTargetGoal;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.world.World;
 
-import java.util.List;
-
+/**
+ * Drawn to light, provoked by panic.
+ *
+ * <p>It wants whatever is lit. Standing still with a torch on is an invitation, and a group that
+ * has gathered somewhere is several invitations in one place. But it only turns on you if you give
+ * it a reason: running where it can see you, talking near it, or hitting it. Kill your lights, stay
+ * quiet, and back away, and it will lose interest — which is the creature's own rule and the only
+ * way past one.
+ *
+ * <p>Attacks <b>down</b> a player rather than killing them, like everything else that hunts here.
+ * Nothing removes a smiler but the lights coming back.
+ */
 public class SmilerEntity extends MobEntity {
     /**
      * Long enough for the client's fade-out to finish. It runs over 30 ticks, so the old value of
@@ -26,8 +34,34 @@ public class SmilerEntity extends MobEntity {
      */
     private static final int FADE_OUT_TICKS = 30;
 
+    /** How far a lit flashlight calls one from. */
+    private static final double ATTRACTION_RANGE = 32.0;
+    /** Talking only matters up close, so a group is not punished for speaking across a level. */
+    private static final double VOICE_RANGE = 10.0;
+    private static final double ATTACK_REACH = 2.5;
+    private static final int ATTACK_COOLDOWN_TICKS = 20;
+    /** Repathing every tick is wasted work; a player cannot outmanoeuvre it in half a second. */
+    private static final int REPATH_INTERVAL_TICKS = 10;
+
+    /** Slow and deliberate while it is only curious. */
+    private static final double APPROACH_SPEED = 0.6;
+    /** Faster once provoked, but still slower than a sprint — and sprinting is what provokes it. */
+    private static final double CHARGE_SPEED = 1.0;
+
+    private static final int AGGRESSION_MAX = 90;
+    private static final int AGGRESSION_ATTACKS_AT = 60;
+    private static final int AGGRESSION_FROM_SPRINTING = 3;
+    /** Deliberately gentle: talking is what the group is for, and it should not be a death sentence. */
+    private static final int AGGRESSION_FROM_SPEAKING = 1;
+    private static final int AGGRESSION_FROM_BEING_STRUCK = 45;
+    private static final int AGGRESSION_DECAY = 1;
+
     private final SmilerComponent component;
     private int finalTicks;
+
+    private int aggression;
+    private int repathIn;
+    private int attackCooldown;
 
     public SmilerEntity(EntityType<? extends MobEntity> entityType, World world) {
         super(entityType, world);
@@ -51,9 +85,12 @@ public class SmilerEntity extends MobEntity {
         return false;
     }
 
+    /**
+     * Vanilla would despawn one for being far from any player. Nothing may remove a smiler except
+     * the lights returning — a player walking away and coming back should find it still standing.
+     */
     @Override
-    protected void initGoals() {
-        this.targetSelector.add(1, new ActiveTargetGoal<>(this, PlayerEntity.class, 0, true, false, null));
+    public void checkDespawn() {
     }
 
     @Override
@@ -73,11 +110,128 @@ public class SmilerEntity extends MobEntity {
                 if(this.finalTicks <= 0){
                     this.discard();
                 }
+            } else {
+                this.hunt();
             }
         }
 
-
         super.tick();
+    }
+
+    private void hunt() {
+        if (this.attackCooldown > 0) {
+            this.attackCooldown--;
+        }
+        if (this.repathIn > 0) {
+            this.repathIn--;
+        }
+
+        PlayerEntity nearest = this.nearestVictim();
+        if (nearest == null) {
+            this.cool();
+            this.getNavigation().stop();
+            return;
+        }
+
+        this.aggression = Math.max(0, Math.min(AGGRESSION_MAX,
+                this.aggression + this.provocationFrom(nearest) - AGGRESSION_DECAY));
+
+        if (this.aggression >= AGGRESSION_ATTACKS_AT) {
+            this.charge(nearest);
+            return;
+        }
+
+        // Not provoked: it only moves toward light, and stands perfectly still without any. That
+        // stillness is the standoff — present, watching, in the way, and survivable.
+        PlayerEntity lit = this.nearestLitPlayer();
+        if (lit == null) {
+            this.getNavigation().stop();
+            return;
+        }
+        this.moveToward(lit, APPROACH_SPEED);
+    }
+
+    private void charge(PlayerEntity target) {
+        this.moveToward(target, CHARGE_SPEED);
+
+        if (this.attackCooldown <= 0 && this.squaredDistanceTo(target) <= ATTACK_REACH * ATTACK_REACH) {
+            this.attackCooldown = ATTACK_COOLDOWN_TICKS;
+            // An ordinary mob attack on purpose: it is not in the bypasses_knockout tag, so
+            // Hardcore Revival turns what would be a kill into a downed player somebody can reach.
+            this.tryAttack(target);
+        }
+    }
+
+    private void moveToward(PlayerEntity target, double speed) {
+        this.getLookControl().lookAt(target, 30.0f, 30.0f);
+        if (this.repathIn <= 0) {
+            this.repathIn = REPATH_INTERVAL_TICKS;
+            this.getNavigation().startMovingTo(target, speed);
+        }
+    }
+
+    private int provocationFrom(PlayerEntity player) {
+        int gain = 0;
+
+        // Panic, which is the lore's own trigger: running where it can see you.
+        if (player.isSprinting() && this.canSee(player)) {
+            gain += AGGRESSION_FROM_SPRINTING;
+        }
+        if (this.squaredDistanceTo(player) <= VOICE_RANGE * VOICE_RANGE
+                && InitializeComponents.PLAYER.get(player).isSpeaking()) {
+            gain += AGGRESSION_FROM_SPEAKING;
+        }
+
+        return gain;
+    }
+
+    private void cool() {
+        this.aggression = Math.max(0, this.aggression - AGGRESSION_DECAY);
+    }
+
+    /** Hitting one is the loudest thing a player can do. */
+    @Override
+    public boolean damage(DamageSource source, float amount) {
+        if (!this.getWorld().isClient && source.getAttacker() instanceof PlayerEntity) {
+            this.aggression = Math.min(AGGRESSION_MAX, this.aggression + AGGRESSION_FROM_BEING_STRUCK);
+        }
+        return super.damage(source, amount);
+    }
+
+    private PlayerEntity nearestVictim() {
+        PlayerEntity nearest = this.getWorld().getClosestPlayer(this, ATTRACTION_RANGE);
+        return this.isVictim(nearest) ? nearest : null;
+    }
+
+    /**
+     * The nearest player actually carrying a light. Light is what draws it; a dark player is not a
+     * destination, however close they are.
+     */
+    private PlayerEntity nearestLitPlayer() {
+        PlayerEntity nearest = null;
+        double nearestDistance = ATTRACTION_RANGE * ATTRACTION_RANGE;
+
+        for (PlayerEntity player : this.getWorld().getPlayers()) {
+            if (!this.isVictim(player) || !InitializeComponents.PLAYER.get(player).isFlashLightOn()) {
+                continue;
+            }
+            double distance = this.squaredDistanceTo(player);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = player;
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
+     * Ghosts and skinwalker captives are spectators — nothing to hunt, and reaching for one would
+     * send it wandering after somebody who is not really there.
+     */
+    private boolean isVictim(PlayerEntity player) {
+        return player != null && player.isAlive() && !player.isSpectator()
+                && player.getWorld() == this.getWorld();
     }
 
     private boolean inBlackout() {
@@ -86,22 +240,16 @@ public class SmilerEntity extends MobEntity {
                 && level.getLightState() == BackroomsLevelWithLights.LightState.BLACKOUT;
     }
 
-    //From Enderman. Don't need anything too fancy
-    private boolean isPlayerStaring(PlayerEntity player) {
-        Vec3d vec3d = player.getRotationVec(1.0F).normalize();
-        Vec3d vec3d2 = new Vec3d(this.getX() - player.getX(), this.getEyeY() - player.getEyeY(), this.getZ() - player.getZ());
-        double d = vec3d2.length();
-        vec3d2 = vec3d2.normalize();
-        double e = vec3d.dotProduct(vec3d2);
-        return e > 1.0 - 0.35 / d && player.canSee(this);
-    }
-
     public static DefaultAttributeContainer.Builder createSmilerAttributes(){
         return MobEntity.createMobAttributes()
+                // Not meant to be fought: a player who decides to attack one should find that it
+                // simply does not work, and then regret having tried.
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 1000)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0)
-                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1000);
+                .add(EntityAttributes.GENERIC_KNOCKBACK_RESISTANCE, 1000)
+                // Slower than a sprint even while charging, so running is survivable — but running
+                // is also what provokes it, which is the trade the whole creature is built on.
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.28)
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 7.0)
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, ATTRACTION_RANGE);
     }
-
-
 }
