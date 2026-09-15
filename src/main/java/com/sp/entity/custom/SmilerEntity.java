@@ -15,6 +15,8 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
@@ -179,20 +181,47 @@ public class SmilerEntity extends MobEntity {
 
             if (!this.pathing && this.pathComplaints < MAX_PATH_COMPLAINTS) {
                 this.pathComplaints++;
-                SPBRevamped.LOGGER.warn("Smiler at {} {} {} could not path to {} ({} blocks away,"
-                                + " onGround={}). Creeping straight at them instead.",
-                        this.getBlockPos().getX(), this.getBlockPos().getY(), this.getBlockPos().getZ(),
-                        target.getEntityName(), Math.round(this.distanceTo(target)), this.isOnGround());
+                BlockPos below = this.getBlockPos().down();
+                SPBRevamped.LOGGER.warn("Smiler at {} could not path to {} ({} blocks away)."
+                                + " onGround={} noGravity={} noClip={} velocityY={} fallDistance={}"
+                                + " standingOn={}",
+                        this.getBlockPos().toShortString(), target.getEntityName(),
+                        Math.round(this.distanceTo(target)), this.isOnGround(), this.hasNoGravity(),
+                        this.noClip, String.format("%.4f", this.getVelocity().y), this.fallDistance,
+                        this.getWorld().getBlockState(below));
             }
         }
 
         if (!this.pathing) {
-            // Pathfinding refuses outright unless the mob is standing on something, and a level
-            // built from placed structures has plenty of places it may not like. A smiler that has
-            // decided to come for you should still come, even if only in a straight line — in a
-            // corridor that is the same thing, and five blocks is not far to walk.
-            this.getMoveControl().moveTo(target.getX(), target.getY(), target.getZ(), CREEP_SPEED);
+            this.creepDirectlyAt(target);
         }
+    }
+
+    /**
+     * Walks straight at the player without pathfinding, and without caring whether the game thinks
+     * this thing is standing on anything.
+     *
+     * <p>Two separate problems make the ordinary route unreliable here. Pathfinding refuses
+     * outright unless {@code isOnGround}, and a mob the game believes is airborne is also moved by
+     * {@code travel} with air control rather than ground friction — a fraction of the intended
+     * speed. Both produce the same symptom of a creature that will not come for you.
+     *
+     * <p>Setting horizontal velocity directly each tick sidesteps both: the speed is what the
+     * attribute says it is either way, gravity still owns the vertical, and walls still stop it.
+     * What it gives up is going around corners, which is why a path is still preferred when the
+     * navigator will give us one.
+     */
+    private void creepDirectlyAt(PlayerEntity target) {
+        Vec3d toTarget = target.getPos().subtract(this.getPos());
+        Vec3d flat = new Vec3d(toTarget.x, 0.0, toTarget.z);
+        if (flat.lengthSquared() < 1.0E-4) {
+            return;
+        }
+
+        Vec3d step = flat.normalize()
+                .multiply(this.getAttributeValue(EntityAttributes.GENERIC_MOVEMENT_SPEED) * CREEP_SPEED);
+        this.setVelocity(step.x, this.getVelocity().y, step.z);
+        this.velocityDirty = true;
     }
 
     /**
