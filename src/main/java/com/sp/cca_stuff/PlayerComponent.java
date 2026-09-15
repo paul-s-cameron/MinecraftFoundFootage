@@ -109,7 +109,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
     public float glitchTimer;
     private boolean shouldGlitch;
     public int glitchTick;
-    public boolean shouldInflictGlitchDamage;
 
     public BackroomsLevel.LevelTransition currentTransition = null;
 
@@ -362,9 +361,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         this.shouldGlitch = shouldGlitch;
     }
 
-    public void setShouldInflictGlitchDamage(boolean shouldInflictGlitchDamage) {
-        this.shouldInflictGlitchDamage = shouldInflictGlitchDamage;
-    }
 
     @Override
     public void readFromNbt(NbtCompound tag) {
@@ -382,7 +378,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         this.isBeingReleased = tag.getBoolean("isBeingReleased");
         this.shouldBeMuted = tag.getBoolean("shouldBeMuted");
         this.shouldGlitch = tag.getBoolean("shouldGlitch");
-        this.shouldInflictGlitchDamage = tag.getBoolean("shouldInflictGlitchDamage");
         this.teleportingTimer = tag.getInt("teleportingTimer");
 
         this.playerSavedMainInventory.readNbtList(tag.getList("inventory", NbtElement.COMPOUND_TYPE));
@@ -406,7 +401,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         tag.putBoolean("isBeingReleased", this.isBeingReleased);
         tag.putBoolean("shouldBeMuted", this.shouldBeMuted);
         tag.putBoolean("shouldGlitch", this.shouldGlitch);
-        tag.putBoolean("shouldInflictGlitchDamage", this.shouldInflictGlitchDamage);
         tag.putInt("teleportingTimer", this.teleportingTimer);
 
         if (BackroomsLevels.isInBackrooms(this.player.getWorld().getRegistryKey())) {
@@ -431,11 +425,6 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
 
         //*Update Stamina
         updateStamina();
-
-        //*Damage if glitched enough from smilers
-        if(this.shouldInflictGlitchDamage){
-            this.player.damage(ModDamageTypes.of(this.player.getWorld(), ModDamageTypes.SMILER), 1.0f);
-        }
 
         //*Is speaking
         if(BackroomsVoicechatPlugin.speakingTime.containsKey(this.player.getUuid()) && BackroomsVoicechatPlugin.speakingTime.get(this.player.getUuid()) == this.prevSpeakingTime) {

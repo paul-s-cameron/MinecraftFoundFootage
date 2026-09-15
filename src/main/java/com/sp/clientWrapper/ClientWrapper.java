@@ -118,14 +118,6 @@ public class ClientWrapper {
                     soundManager.play(playerComponent.GlitchAmbience);
                 }
 
-                if (playerComponent.glitchTimer >= 0.25f) {
-                    if (!playerComponent.shouldInflictGlitchDamage) {
-                        playerComponent.shouldInflictGlitchDamage = true;
-//                                System.out.println("SENT TRUE TO: " + playerComponent.player.getName().toString());
-                        SPBRevampedClient.sendComponentSyncPacket(true, "glitch");
-                    }
-                }
-
             } else if (!playerComponent.isTeleportingToPoolrooms() && (!(SPBRevampedClient.isInLevel(BackroomsLevels.LEVEL324_BACKROOMS_LEVEL) && playerComponent.player.getWorld().getBlockState(playerComponent.player.getBlockPos().offset(Direction.DOWN, 2)).isOf(Blocks.GREEN_WOOL)))) {
                 playerComponent.glitchTick = Math.max(playerComponent.glitchTick - 1, 0);
                 playerComponent.glitchTimer = Math.max((float) playerComponent.glitchTick / 80, 0.0f);
@@ -136,13 +128,6 @@ public class ClientWrapper {
                     }
                 }
 
-                if (playerComponent.glitchTimer <= 0.75f) {
-                    if (playerComponent.shouldInflictGlitchDamage) {
-                        playerComponent.shouldInflictGlitchDamage = false;
-//                                System.out.println("SENT FALSE TO: " + playerComponent.player.getName().toString());
-                        SPBRevampedClient.sendComponentSyncPacket(false, "glitch");
-                    }
-                }
             }
 
             if (SPBRevampedClient.isInLevel(BackroomsLevels.LEVEL324_BACKROOMS_LEVEL) && playerComponent.player.getWorld().getBlockState(playerComponent.player.getBlockPos().offset(Direction.DOWN, 2)).isOf(Blocks.GREEN_WOOL)) {

@@ -21,7 +21,6 @@ public class SyncServerComponent {
                 case "beingCaptured": playerComponent.setBeingCaptured(readBoolean); break;
                 case "cutscene": playerComponent.setDoingCutscene(readBoolean); break;
                 case "flashlight": playerComponent.setFlashLightOn(readBoolean); break;
-                case "glitch": playerComponent.setShouldInflictGlitchDamage(readBoolean); break;
                 case "teleporting": playerComponent.setTeleporting(readBoolean); break;
             }
 
