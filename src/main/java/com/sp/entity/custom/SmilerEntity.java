@@ -1,5 +1,6 @@
 package com.sp.entity.custom;
 
+import com.sp.SPBRevamped;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
 import com.sp.cca_stuff.SmilerComponent;
@@ -64,6 +65,9 @@ public class SmilerEntity extends MobEntity {
     /** How far a player must move in a tick to be making noise with it. */
     private static final double FOOTSTEP_MOVEMENT = 0.01;
 
+    /** A smiler that cannot path says so a few times and then stops filling the log. */
+    private static final int MAX_PATH_COMPLAINTS = 3;
+
     private final SmilerComponent component;
     private int finalTicks;
 
@@ -73,6 +77,10 @@ public class SmilerEntity extends MobEntity {
     private int provokedFor;
     private int repathIn;
     private int strikeCooldown;
+    /** Whether the last attempt to path actually took; false means creep in a straight line. */
+    private boolean pathing;
+    private int pathComplaints;
+    private boolean announcedStalk;
 
     public SmilerEntity(EntityType<? extends MobEntity> entityType, World world) {
         super(entityType, world);
@@ -153,6 +161,11 @@ public class SmilerEntity extends MobEntity {
             return;
         }
 
+        if (!this.announcedStalk) {
+            this.announcedStalk = true;
+            SPBRevamped.LOGGER.info("Smiler locked on {} and started stalking.", target.getEntityName());
+        }
+
         this.getLookControl().lookAt(target, 30.0f, 30.0f);
 
         if (this.squaredDistanceTo(target) <= STRIKE_RANGE * STRIKE_RANGE) {
@@ -162,7 +175,23 @@ public class SmilerEntity extends MobEntity {
 
         if (this.repathIn <= 0) {
             this.repathIn = REPATH_INTERVAL_TICKS;
-            this.getNavigation().startMovingTo(target, CREEP_SPEED);
+            this.pathing = this.getNavigation().startMovingTo(target, CREEP_SPEED);
+
+            if (!this.pathing && this.pathComplaints < MAX_PATH_COMPLAINTS) {
+                this.pathComplaints++;
+                SPBRevamped.LOGGER.warn("Smiler at {} {} {} could not path to {} ({} blocks away,"
+                                + " onGround={}). Creeping straight at them instead.",
+                        this.getBlockPos().getX(), this.getBlockPos().getY(), this.getBlockPos().getZ(),
+                        target.getEntityName(), Math.round(this.distanceTo(target)), this.isOnGround());
+            }
+        }
+
+        if (!this.pathing) {
+            // Pathfinding refuses outright unless the mob is standing on something, and a level
+            // built from placed structures has plenty of places it may not like. A smiler that has
+            // decided to come for you should still come, even if only in a straight line — in a
+            // corridor that is the same thing, and five blocks is not far to walk.
+            this.getMoveControl().moveTo(target.getX(), target.getY(), target.getZ(), CREEP_SPEED);
         }
     }
 
