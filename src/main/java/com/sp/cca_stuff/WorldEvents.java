@@ -1,5 +1,7 @@
 package com.sp.cca_stuff;
 
+import com.sp.settings.RoundOptions;
+
 import com.sp.SPBRevamped;
 import com.sp.compat.hardcorerevival.Revival;
 import com.sp.entity.custom.SkinWalkerEntity;
@@ -234,6 +236,10 @@ public class WorldEvents implements AutoSyncedComponent, ServerTickingComponent 
         PlayerComponent targetComponent = InitializeComponents.PLAYER.get(target);
 
         if (targetComponent.isSpeaking()) {
+            return;
+        }
+        // Switched off by the host: a target is still picked and watched, it is just never taken.
+        if (!RoundOptions.get().skinwalkerEnabled()) {
             return;
         }
 

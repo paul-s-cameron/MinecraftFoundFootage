@@ -1,5 +1,7 @@
 package com.sp.world.events.level1;
 
+import com.sp.settings.RoundOptions;
+
 import com.sp.entity.SmilerSpawner;
 import com.sp.init.BackroomsLevels;
 import com.sp.init.ModSounds;
@@ -80,8 +82,9 @@ public class Level1Blackout extends AbstractEvent {
     }
 
 
+    /** Read live, so a host changing it mid-blackout shortens or lengthens the one in progress. */
     @Override
     public int duration() {
-        return 600;
+        return RoundOptions.get().blackoutSeconds() * 20;
     }
 }

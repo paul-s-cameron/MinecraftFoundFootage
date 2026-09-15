@@ -1,5 +1,11 @@
 package com.sp.world.levels.custom;
 
+import com.sp.settings.RoundOptions;
+import com.sp.world.events.AbstractEvent;
+import com.sp.world.events.generic.lights.LightLevelFlicker;
+import com.sp.world.events.level1.Level1Blackout;
+import net.minecraft.world.World;
+
 import com.sp.SPBRevamped;
 import com.sp.cca_stuff.InitializeComponents;
 import com.sp.cca_stuff.PlayerComponent;
@@ -28,7 +34,12 @@ public class Level1BackroomsLevel extends BackroomsLevel implements BackroomsLev
      * retires, so this is also how many a blackout produces in total — they accumulate and are all
      * dispelled together when the lights come back.
      */
-    private static final SmilerPolicy SMILER_POLICY = new SmilerPolicy(3, 140, 15.0);
+    /** Seven seconds between arrivals, placed fifteen blocks out. Only the count is a host setting. */
+    private static final int SMILER_SPAWN_INTERVAL_TICKS = 140;
+    private static final double SMILER_SPAWN_DISTANCE = 15.0;
+
+    /** Rebuilt only when the host changes the count; asked for every tick of a blackout otherwise. */
+    private SmilerPolicy smilerPolicy = new SmilerPolicy(3, SMILER_SPAWN_INTERVAL_TICKS, SMILER_SPAWN_DISTANCE);
 
     private Level0BackroomsLevel.LightState lightState = BackroomsLevelWithLights.LightState.ON;
 
@@ -39,7 +50,30 @@ public class Level1BackroomsLevel extends BackroomsLevel implements BackroomsLev
     /** Only while the lights are out — the blackout is the whole of a smiler's existence here. */
     @Override
     public SmilerPolicy smilerPolicy() {
-        return this.lightState == BackroomsLevelWithLights.LightState.BLACKOUT ? SMILER_POLICY : null;
+        if (this.lightState != BackroomsLevelWithLights.LightState.BLACKOUT
+                || !RoundOptions.get().smilersEnabled()) {
+            return null;
+        }
+        int perPlayer = RoundOptions.get().smilersPerPlayer();
+        if (this.smilerPolicy.maxNearPlayer() != perPlayer) {
+            this.smilerPolicy = new SmilerPolicy(perPlayer, SMILER_SPAWN_INTERVAL_TICKS, SMILER_SPAWN_DISTANCE);
+        }
+        return this.smilerPolicy;
+    }
+
+    /**
+     * With random blackouts switched off, the slot a blackout would have taken becomes a flicker:
+     * the lights still misbehave on the same cadence, they just never actually go. Substituting
+     * rather than re-rolling keeps event timing identical to a round with them on, so the setting
+     * changes one thing and not two.
+     */
+    @Override
+    public AbstractEvent getRandomEvent(World world) {
+        AbstractEvent event = super.getRandomEvent(world);
+        if (event instanceof Level1Blackout && !RoundOptions.get().randomBlackouts()) {
+            return new LightLevelFlicker();
+        }
+        return event;
     }
 
     @Override

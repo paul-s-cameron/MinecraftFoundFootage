@@ -52,9 +52,12 @@ public class RallyComponent implements Component, ServerTickingComponent {
      * climax; taking them for the whole countdown would just be a long dark wait.
      *
      * <p>Matches the blackout's own duration, so it runs out at roughly the moment the level
-     * departs rather than ending early and handing the group a lit exit.
+     * departs rather than ending early and handing the group a lit exit. That duration is a host
+     * setting now, so this is read from the same place rather than kept as a second copy of it.
      */
-    private static final int BLACKOUT_LEAD_TICKS = 600;
+    private static int blackoutLeadTicks() {
+        return RoundOptions.get().blackoutSeconds() * 20;
+    }
 
     /** How long an operator's {@code /rally cancel} suppresses the exit that was just cancelled. */
     private static final int CANCEL_COOLDOWN_TICKS = 200;
@@ -351,7 +354,12 @@ public class RallyComponent implements Component, ServerTickingComponent {
      * being whatever the group is carrying — which is exactly what a smiler comes to.
      */
     private void failLightsNearTheEnd() {
-        if (this.blackedOut || this.world.getTime() < this.deadline - BLACKOUT_LEAD_TICKS) {
+        if (this.blackedOut || this.world.getTime() < this.deadline - blackoutLeadTicks()) {
+            return;
+        }
+        // A host can switch this off. Marked as done all the same, so it is not re-asked every tick.
+        if (!RoundOptions.get().rallyBlackout()) {
+            this.blackedOut = true;
             return;
         }
         // Set regardless of what happens below: a level with no lights should not be asked again

@@ -25,6 +25,27 @@ public final class RoundOptions {
          * is not uniform: the larger levels deliberately allow longer than the rest.
          */
         int rallyCountdownOverrideSeconds();
+
+        /** Whether smilers come out at all during a blackout. */
+        boolean smilersEnabled();
+
+        /** How many smilers may be near one player at once. */
+        int smilersPerPlayer();
+
+        /** Whether a skinwalker may take a player nobody else can see. */
+        boolean skinwalkerEnabled();
+
+        /**
+         * Seconds the lights stay out. One number for a random blackout and for the dark stretch
+         * at the end of a rally, which are meant to be the same length.
+         */
+        int blackoutSeconds();
+
+        /** Whether Level 1's lights fail on their own, as opposed to only when a rally asks. */
+        boolean randomBlackouts();
+
+        /** Whether gathering for a rally puts the lights out for its final stretch. */
+        boolean rallyBlackout();
     }
 
     /** What this mod does with no lobby installed. Each answer is the pre-settings behaviour. */
@@ -37,6 +58,36 @@ public final class RoundOptions {
         @Override
         public int rallyCountdownOverrideSeconds() {
             return 0;
+        }
+
+        @Override
+        public boolean smilersEnabled() {
+            return true;
+        }
+
+        @Override
+        public int smilersPerPlayer() {
+            return 3;
+        }
+
+        @Override
+        public boolean skinwalkerEnabled() {
+            return true;
+        }
+
+        @Override
+        public int blackoutSeconds() {
+            return 30;
+        }
+
+        @Override
+        public boolean randomBlackouts() {
+            return true;
+        }
+
+        @Override
+        public boolean rallyBlackout() {
+            return true;
         }
     };
 
