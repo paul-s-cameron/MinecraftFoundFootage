@@ -186,6 +186,10 @@
   "spb-revamped.ghost.command.status.spectating": "%s: spectating, but not a ghost",
   "spb-revamped.ghost.command.status.up": "%s: up, %s health",
 
+  "spb-revamped.level.command.moved": "Moved %s player(s) to %s.",
+  "spb-revamped.level.command.unknown": "No level called %s.",
+  "spb-revamped.level.command.unloaded": "The level %s is not loaded.",
+
   "objective.spb-revamped.rally": "EXIT FOUND",
   "objective.spb-revamped.level0": "FIND A WAY DOWN",
   "objective.spb-revamped.level1": "KEEP GOING DOWN",
