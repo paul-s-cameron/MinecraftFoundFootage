@@ -452,6 +452,7 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
 
         //*Ghosts: keep the camera locked to a teammate, and revive them when the group moves on
         if (this.player instanceof ServerPlayerEntity serverPlayer) {
+            releaseIfNothingIsHoldingUs(serverPlayer);
             GhostManager.tick(serverPlayer, this);
             //*Objectives: work out what this player should be told to do, and sync it if it moved
             ObjectiveManager.tick(serverPlayer);
@@ -528,6 +529,55 @@ public class PlayerComponent implements AutoSyncedComponent, ClientTickingCompon
         }
         
         shouldSync();
+    }
+
+    /**
+     * A skinwalker's captive is a spectator held on the skinwalker's camera — being <i>controlled</i>,
+     * not dead, so unlike a ghost they may not choose who they watch and nothing re-attaches them.
+     * That makes a lost camera far worse for them: vanilla hands back their own camera the moment
+     * the entity stops being alive, and a spectator watching themselves is a free-flying noclip
+     * view of the level, which is exactly what the capture exists to deny.
+     *
+     * <p>So whenever nothing is actually holding them any more — the skinwalker died, was removed,
+     * or they were moved to a different level without it — the capture ends here rather than
+     * leaving them adrift. Deliberately a per-player check: the world that owns the capture cannot
+     * see a captive who is no longer in it.
+     */
+    /**
+     * Whether this player is a spectator the game is holding, rather than one free to look around.
+     *
+     * <p>Two states qualify and they are not the same thing. A <b>ghost</b> is dead and watching a
+     * teammate, and may choose which teammate. A skinwalker's <b>captive</b> is alive and being
+     * controlled, and may choose nothing at all. What they share is that neither may use the
+     * spectator menu, whose entire purpose is teleporting to any player in any dimension.
+     */
+    public boolean isCameraLocked() {
+        return this.ghost || this.hasBeenCaptured() || this.isBeingCaptured();
+    }
+
+    private void releaseIfNothingIsHoldingUs(ServerPlayerEntity serverPlayer) {
+        if (!this.hasBeenCaptured() && !this.isBeingCaptured()) {
+            return;
+        }
+        if (!serverPlayer.isSpectator()) {
+            return;
+        }
+
+        Entity camera = serverPlayer.getCameraEntity();
+        boolean held = camera != null
+                && camera != serverPlayer
+                && camera.isAlive()
+                && camera.getWorld() == serverPlayer.getWorld();
+        if (held) {
+            return;
+        }
+
+        serverPlayer.changeGameMode(this.getPrevGameMode() != null ? this.getPrevGameMode() : GameMode.SURVIVAL);
+        serverPlayer.setCameraEntity(serverPlayer);
+        this.setHasBeenCaptured(false);
+        this.setBeingCaptured(false);
+        this.setShouldBeMuted(false);
+        this.sync();
     }
 
     private void updateStamina() {

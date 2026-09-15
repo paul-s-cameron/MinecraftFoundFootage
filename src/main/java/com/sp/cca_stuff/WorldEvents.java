@@ -111,6 +111,15 @@ public class WorldEvents implements AutoSyncedComponent, ServerTickingComponent 
     }
 
     private void shouldReleasePlayer() {
+        // A skinwalker that has died or been removed leaves a stale reference here, which is not
+        // the same as null and so used to skip the release below entirely. Meanwhile vanilla's own
+        // tick sees a camera entity that is no longer alive and hands the captive their camera
+        // back — as a spectator, with nothing holding them, which is a free-flying noclip camera
+        // over the level. Whatever was holding you has stopped existing, so the capture is over.
+        if (this.activeSkinWalkerEntity != null && !this.activeSkinWalkerEntity.isAlive()) {
+            this.activeSkinWalkerEntity = null;
+        }
+
         if (this.activeSkinWalkerEntity == null) {
             if (this.getActiveSkinwalkerTarget() != null) {
                 ServerPlayerEntity target = (ServerPlayerEntity) this.getActiveSkinwalkerTarget();
