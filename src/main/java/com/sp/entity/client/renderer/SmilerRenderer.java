@@ -32,8 +32,19 @@ public class SmilerRenderer extends MobEntityRenderer<SmilerEntity, SmilerModel<
     public void render(SmilerEntity mobEntity, float f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i) {
         Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
 
+        // The model is a single flat quad with no depth, turned to face the viewer. But
+        // LivingEntityRenderer.setupTransforms then rotates everything by (180 - bodyYaw), so the
+        // net rotation is only what we asked for while bodyYaw happens to be zero — which it was,
+        // back when a smiler could not move or turn. Now that one walks toward a light and looks
+        // at what it is hunting, its own facing has to be cancelled out, or the face is rotated
+        // edge-on to the camera and a zero-depth quad seen edge-on is nothing at all.
+        //
+        // Interpolated exactly as setupTransforms interpolates it, so the two cancel every frame
+        // rather than only on tick boundaries.
+        float bodyYaw = MathHelper.lerpAngleDegrees(g, mobEntity.prevBodyYaw, mobEntity.bodyYaw);
+
         matrixStack.translate(0,1,0);
-        float angle = lookAtEntityAroundYAxis(mobEntity.getEyePos(), camera.getPos());
+        float angle = lookAtEntityAroundYAxis(mobEntity.getEyePos(), camera.getPos()) + bodyYaw;
         matrixStack.multiply(new Quaternionf().rotateXYZ(0, (float) Math.toRadians(angle), 0));
         matrixStack.translate(0,-1,0);
 
