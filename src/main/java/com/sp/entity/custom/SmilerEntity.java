@@ -36,6 +36,10 @@ public class SmilerEntity extends MobEntity {
 
     /** How far a lit flashlight calls one from. */
     private static final double ATTRACTION_RANGE = 32.0;
+    /** Being this close is itself a provocation: the lore's survival rule is to <i>move away</i>. */
+    private static final double CROWDING_RANGE = 6.0;
+    /** Close enough that a lit torch is not merely a beacon but a stare it can object to. */
+    private static final double LIT_RANGE = 12.0;
     /** Talking only matters up close, so a group is not punished for speaking across a level. */
     private static final double VOICE_RANGE = 10.0;
     private static final double ATTACK_REACH = 2.5;
@@ -50,6 +54,10 @@ public class SmilerEntity extends MobEntity {
 
     private static final int AGGRESSION_MAX = 90;
     private static final int AGGRESSION_ATTACKS_AT = 60;
+    /** Standing too close. On its own, three seconds before it moves. */
+    private static final int AGGRESSION_FROM_CROWDING = 1;
+    /** A torch held on it nearby. Doubles up with crowding, which is the walk-right-up case. */
+    private static final int AGGRESSION_FROM_LIGHT = 1;
     private static final int AGGRESSION_FROM_SPRINTING = 3;
     /** Deliberately gentle: talking is what the group is for, and it should not be a death sentence. */
     private static final int AGGRESSION_FROM_SPEAKING = 1;
@@ -133,8 +141,13 @@ public class SmilerEntity extends MobEntity {
             return;
         }
 
-        this.aggression = Math.max(0, Math.min(AGGRESSION_MAX,
-                this.aggression + this.provocationFrom(nearest) - AGGRESSION_DECAY));
+        // Provocation builds; decay only happens when nothing is provoking it at all. Netting the
+        // two against each other made standing still next to one a permanent stalemate, which is
+        // the opposite of a threat — the way out is to put distance and darkness between you.
+        int provocation = this.provocationFrom(nearest);
+        this.aggression = provocation > 0
+                ? Math.min(AGGRESSION_MAX, this.aggression + provocation)
+                : Math.max(0, this.aggression - AGGRESSION_DECAY);
 
         if (this.aggression >= AGGRESSION_ATTACKS_AT) {
             this.charge(nearest);
@@ -171,14 +184,25 @@ public class SmilerEntity extends MobEntity {
     }
 
     private int provocationFrom(PlayerEntity player) {
+        double distanceSquared = this.squaredDistanceTo(player);
+        PlayerComponent component = InitializeComponents.PLAYER.get(player);
         int gain = 0;
 
+        // Simply being there. The lore's survival rule is to back away gradually, not to hold your
+        // ground, so holding it has to cost something or there is no rule at all.
+        if (distanceSquared <= CROWDING_RANGE * CROWDING_RANGE) {
+            gain += AGGRESSION_FROM_CROWDING;
+        }
+        // Light draws it from across the level; near enough, it is also an affront. Walking up to
+        // one with a torch on is both at once, which is the case that should never have been safe.
+        if (distanceSquared <= LIT_RANGE * LIT_RANGE && component.isFlashLightOn()) {
+            gain += AGGRESSION_FROM_LIGHT;
+        }
         // Panic, which is the lore's own trigger: running where it can see you.
         if (player.isSprinting() && this.canSee(player)) {
             gain += AGGRESSION_FROM_SPRINTING;
         }
-        if (this.squaredDistanceTo(player) <= VOICE_RANGE * VOICE_RANGE
-                && InitializeComponents.PLAYER.get(player).isSpeaking()) {
+        if (distanceSquared <= VOICE_RANGE * VOICE_RANGE && component.isSpeaking()) {
             gain += AGGRESSION_FROM_SPEAKING;
         }
 
